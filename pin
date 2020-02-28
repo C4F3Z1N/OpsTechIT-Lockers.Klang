@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#HELP   <pickup code> - shows if the pickup code was used.
+
+echo -e "\e[1;31m>>>Searching for the customer PIN typed on screen or scanned<<<\e[0m"
+zgrep -i "${1}" $(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log*) || echo "- Nothing found."
+echo
+date

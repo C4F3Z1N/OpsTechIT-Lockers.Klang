@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#HELP	slot-sensor <slotnr> - check a slot <slotnr>\nslot-sensor <nr1> <nr2> <nr3> - checks multiple sensors\nslot-sensor all - checks all sensors.
+
+MSG="a single slot"
+TARGET="-d ${@}"
+
+case ${#} in
+
+	0)
+		exit 1
+		;;
+
+	1)
+		if [[ ${1} == "all" ]]; then
+			MSG="ALL slots"
+			TARGET=""
+		fi
+		;;
+
+	*)
+		MSG="multiple slots"
+		;;
+
+esac
+
+cd /usr/local/dpcs
+
+echo "# Checking sensors for ${MSG}:" | grep --color ".*"
+sudo ./lockerController.sh -s ${TARGET}
+
+exit ${?}

@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#HELP	Checks the screen connection and usage.
+
+LOG_SIZE=${LOG_SIZE:-30}
+
+dmesg | grep --color -i "egal\|elo"
+echo
+if (( ${LOG_SIZE} >= 30 )); then \
+	echo
+	zgrep -i "keyboard" \
+		$(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log* -mtime -3) \
+		| tail -n ${LOG_SIZE} \
+		| cut -d ":" -f 2- \
+		| sed -e "s%INFO.*anonymous]%-%"
+fi

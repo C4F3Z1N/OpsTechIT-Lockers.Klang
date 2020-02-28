@@ -1,0 +1,28 @@
+#!/bin/bash
+
+#HELP   downloads and launches the RHEL environment.
+
+related_services() {
+
+    local services="S99DPCS iptables"
+
+    for EACH in ${services}; do
+        sudo service ${EACH} ${@}
+    done
+}
+
+RHEL_URL="https://s3.amazonaws.com/azbox/AmazonTest_rhel7.v1.19"
+
+mkdir -p "/tmp/klang-data.$(date +%F)"
+cd "/tmp/klang-data.$(date +%F)"
+
+if [ ! -f ./rhel ]; then
+    wget -O ./rhel ${RHEL_URL}
+    chmod a+x ./rhel
+fi
+
+related_services stop
+sudo ./rhel eth1
+related_services restart
+
+exit ${?}

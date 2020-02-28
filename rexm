@@ -1,0 +1,82 @@
+#!/bin/bash
+
+#HELP   KSM software repair.
+
+SOFTWARE=(aladdinui appsConfig azbox cronjobs dhclient dpcs initdscripts iptables ivona_de_DE ivona_en_AU ivona_en_GB ivona_en_US ivona_es_ES ivona_es_US ivona_fr_CA ivona_fr_FR ivona_it_IT ivona_nl_NL ivona_pl_PL ivona_tr_TR kcs kioskconfig kioskdeviceinfoclient kioskfiletransporter kioskfirefox kioskfirefox_v46 kioskjava8 kiosklogpusher kioskmonitoringtools kioskqrcodegenerator kiosksshtunnelbuilder kiosktruststore kioskusercredentials kioskvoiceui kioskwatcher kioskxclient kollector ksminstaller ksmpayload locales metricstransporter networkconfig resources sudoers)
+
+sudo /etc/init.d/S97KSM stop
+
+for APP in ${SOFTWARE[*]}
+
+do
+    echo -n "Checking $APP deployment state... "
+    LIVE=$(grep "$APP" /kiosk/local/ksm/KioskSoftwareManager.log | grep "Published state change")
+
+    if [ -n "$LIVE" ]
+    then
+        STATE=$(echo $LIVE | sed 's/\[/\n/g' | tail -n 1 | sed 's/,\|=/ /g' | cut -d " " -f 4,6,8)
+
+        if [[ "$STATE" == *"DEPLOYED"* ]]
+        then
+            echo "COMPLETED INSTALL DEPLOYED"
+            break
+
+        elif [ -n "$STATE" ]
+        then
+            echo -e -n "$STATE\n"
+            BEGIN=$(grep -w -n -B 5 -A 10 "\"$APP" /kiosk/etc/ksm/softwareInventory.json | sed 's/,\|\"/\n/g' | grep "{" | head -1 | tr -d "\- \{")
+            END=$(grep -w -n -B 5 -A 10 "\"$APP" /kiosk/etc/ksm/softwareInventory.json | sed 's/,\|\"/\n/g'  | grep "}" | tail -1 | tr -d "\- \}")
+            echo "Removing the $APP entry from the /kiosk/etc/ksm/softwareInventory.json file..."
+
+            if [ -n "$BEGIN" ] && [ -n "$END" ]
+            then
+                sudo sed -i -e "${BEGIN},${END}d" /kiosk/etc/ksm/softwareInventory.json
+            else
+                echo "$APP entry not found in the /kiosk/etc/ksm/softwareInventory.json file"
+            fi
+        fi
+
+    elif [ -z "$LIVE" ]
+    then
+        HISTORY=""
+        for OLDLOG in `ls -r /tmp/kiosklogpusher/backup/KioskSoftwareManager*`
+
+        do
+            HISTORY=$(zgrep "$APP" $OLDLOG | grep "Published state change")
+
+            if [ -n "$HISTORY" ]
+            then
+                STATE=$(echo $HISTORY | sed 's/\[/\n/g' | tail -n 1 | sed 's/,\|=/ /g' | cut -d " " -f 4,6,8)
+
+                if [[ "$STATE" == *"DEPLOYED"* ]]
+                then
+                    echo "COMPLETED INSTALL DEPLOYED"
+                    break
+
+                elif [ -n "$STATE" ]
+                then
+                    echo -e -n "$STATE\n"
+                    BEGIN=$(grep -w -n -B 5 -A 10 "\"$APP" /kiosk/etc/ksm/softwareInventory.json |  sed 's/,\|\"/\n/g' | grep "{" | head -1 | tr -d "\- \{")
+                    END=$(grep -w -n -B 5 -A 10 "\"$APP" /kiosk/etc/ksm/softwareInventory.json |  sed 's/,\|\"/\n/g' | grep "}" | tail -1 | tr -d "\- \}")
+                    echo "Removing the $APP entry from the /kiosk/etc/ksm/softwareInventory.json file..."
+                                    
+                    if [ -n "$BEGIN" ] && [ -n "$END" ]
+                    then
+                        sudo sed -i -e "${BEGIN},${END}d" /kiosk/etc/ksm/softwareInventory.json
+                        break
+                    else
+                        echo "$APP entry not found in the /kiosk/etc/ksm/softwareInventory.json file"
+                    fi
+                fi
+            fi
+        done
+        
+        if [ -z "$HISTORY" ]
+        then
+            echo "Package state information NOT FOUND in the KioskSoftwareManager logs"
+        fi
+    fi    
+
+done
+
+sudo /etc/init.d/S97KSM restart
