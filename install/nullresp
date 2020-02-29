@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#HELP	Repeated Null Locker Controller Responses
+
+echo -e "\e[1;31mChecking dpcs logs for non-responding boards...\e[0m"
+
+zgrep -i "PST.*Empty Response for IP" /tmp/kiosklogpusher/backup/Del* | sed "s/PST.*Command//g" | cut -d ":" -f 2- | tr -d '")'
+grep -i "PST.*Empty Response for IP" /usr/local/dpcs/DeliveryPointClientService.log | sed "s/PST.*Command//g" | cut -d ":" -f 1- | tr -d '")'
+
+IP=$(boards | grep -i "192" | awk '{print $2}')
+
+echo -e "\n\n\e[1;31mPinging the switch...\n\e[0m"
+
+ping -c 10 -i 0.2 192.168.1.1
+
+echo -e "\n\n\e[1;31mPinging all expected boards...\n\e[0m"
+
+for i in $IP
+do
+    ping -c 10 -i 0.2 $i
+    echo
+    echo
+done
+
+echo -n -e "\e[1;31mCurrent date: \e[0m"; date
