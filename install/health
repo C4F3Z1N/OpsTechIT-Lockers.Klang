@@ -26,6 +26,7 @@ ups
 format_msg "Screen, scanner:"
 screen
 echo
+echo
 scanner
 
 format_msg "SVB, PCBs:"

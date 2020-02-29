@@ -5,12 +5,12 @@
 LOG_SIZE=${LOG_SIZE:-30}
 
 dmesg | grep --color -i "egal\|elo"
-echo
+
 if (( ${LOG_SIZE} >= 30 )); then \
 	echo
-	zgrep -i "keyboard" \
-		$(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log* -mtime -3) \
+	DAYS_AGO=$(( LOG_SIZE / 4 + 1 ))
+	zgrep -hi "keyboard" \
+		$(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log* -mtime -${DAYS_AGO}) \
 		| tail -n ${LOG_SIZE} \
-		| cut -d ":" -f 2- \
 		| sed -e "s%INFO.*anonymous]%-%"
 fi
