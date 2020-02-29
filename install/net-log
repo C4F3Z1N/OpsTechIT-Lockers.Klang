@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#HELP	Under development.
+
+LOG_SIZE=${LOG_SIZE:-30}
+
+ITSELF=$(basename ${0})
+DAYS_AGO=3
+
+cd $(mktemp -d)
+zcat $(find /tmp/kiosklogpusher/backup/traceroute.dat* -mtime -${DAYS_AGO}) >> raw.log
+
+OFF_LINES=$(cat raw.log | grep -n "^#UTC_Time:" | cut -d ':' -f 1 | grep -v 1)
+
+csplit -f "${ITSELF}." raw.log ${OFF_LINES}
+
+for EACH in $(ls ${ITSELF}*); do
+	mv -f ${EACH} "_${EACH}";
+	cat "_${EACH}" | awk -F ':' '{print $2}' | tr -d "[:blank:]#" >> ${EACH};
+	rm -f "_${EACH}"
+done
+
+pwd
