@@ -31,6 +31,9 @@ scanner
 format_msg "SVB, PCBs:"
 boards
 
+format_msg "Internet connection:"
+netlog
+
 format_msg "Latest DPCS errors:"
 error
 
