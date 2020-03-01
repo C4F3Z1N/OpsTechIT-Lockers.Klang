@@ -1,0 +1,46 @@
+#!/bin/bash
+
+#HELP	Resume of the latest "traceroute" logs.
+
+print_formatted() {
+	local line=${@}
+
+	if [[ ${line} == *"ONLINE"* ]]; then
+		echo -e "\e[92m${line}\e[0m"
+	elif [[ ${line} == *"OFFLINE"* ]]; then
+		echo -e "\e[91m${line}\e[0m"
+	fi
+}
+
+DAYS_AGO=${DAYS_AGO:-3}
+
+cd $(mktemp -d)
+
+echo > raw.log
+zcat $(find /tmp/kiosklogpusher/backup/traceroute.dat* -mtime -${DAYS_AGO}) >> raw.log
+cat /usr/local/kiosk*/monlogs/traceroute.dat* >> raw.log
+
+KEY="#UTC_Time:"
+
+grep "^${KEY}" raw.log | awk '{print $2"...............OFFLINE"}' > offline.log
+grep -v "^${KEY}" raw.log | grep -o "${KEY}.*" | awk '{print $2"...............ONLINE"}' > online.log
+
+echo -e "# Showing changes from the \e[1mlast ${DAYS_AGO} days\e[0m:"
+
+PREV_LINE=""
+OMITTED=""
+for EACH in $(cat *line.log | sort -u); do
+
+	STATUS=$(grep -oE "[^.]+$" <<< ${EACH})
+
+	if [[ ${PREV_LINE} == *${STATUS}* ]]; then
+		OMITTED=${EACH}
+	else
+		print_formatted ${OMITTED}
+		print_formatted ${EACH}
+	fi
+
+	PREV_LINE=${EACH}
+done
+
+echo -e "\n# Now: \e[1m$(date '+%F %T')\e[0m"
