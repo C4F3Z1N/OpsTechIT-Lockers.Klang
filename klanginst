@@ -10,11 +10,9 @@ wget -qP . ${URL_PACKED}
 unzip -oq ./install.zip -d ${HOME}/bin
 chmod a+x ${HOME}/bin/*
 
-RC=$(grep -i "wget -qO - ${URL_INSTALLER} | \${SHELL}" ${HOME}/.bashrc)
+sed -i "s%.*${URL_INSTALLER}.*%%g" ${HOME}/.bashrc
 
-if [ -z "${RC}" ]; then
-    echo "wget -qO - ${URL_INSTALLER} | \${SHELL}" >> ${HOME}/.bashrc
-fi 
+echo "wget -qO - ${URL_INSTALLER} | \${SHELL}" >> ${HOME}/.bashrc
 
 echo "- Klang! successfully installed and it is ready to use!"
 echo "- Type klang to see the list of commands" | grep --color "klang\|"
