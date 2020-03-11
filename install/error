@@ -7,12 +7,12 @@ LOG_SIZE=${LOG_SIZE:-30}
 OUTPUT=$(mktemp -u)
 MINUTES_AGO=120
 
-zgrep -h "ERROR" \
+{ zgrep -h "ERROR" \
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/dpcs}/DeliveryPointClientService.log* -mmin -${MINUTES_AGO}) \
-	| sort >> ${OUTPUT}
+	| sort >> ${OUTPUT}; } 2> /dev/null
 
 if (( $(wc -l ${OUTPUT} | awk '{print $1}') > 0 )); then
-	cat ${OUTPUT} | tail -n ${LOG_SIZE}
+	tail -n ${LOG_SIZE} ${OUTPUT}
 else
 	echo "- Nothing found."
 fi

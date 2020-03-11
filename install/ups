@@ -4,6 +4,25 @@
 
 print_formatted() { echo "# ${@}" | grep --color ".*"; }
 
+get_json_keys() {
+
+	local ARGS=${@}
+	local PARSED="["
+
+	for LINE in $(cat); do
+		PARSED="${PARSED}${LINE},"
+	done
+
+	PARSED="${PARSED::-1}]"
+
+	python - <<- EOF
+		from json import loads
+		print "\n".join(["\t".join([str(elem[key]) for key in '${ARGS}'.split()]) for elem in loads('${PARSED}')])
+	EOF
+}
+
+########## MAIN ##########
+
 LOG_SIZE=${LOG_SIZE:-30}
 
 OUTPUT=$(mktemp)
@@ -15,8 +34,8 @@ echo
 KEY="UPSBatteryPercentMetric"
 print_formatted ${KEY}
 grep ${KEY} /usr/local/kioskmonitoringtools/kioskwatcher.log* \
-	| awk -F ',' '{print $7":"$6}' \
-	| awk -F ':' '{print strftime("%F %H:%M:%S",$2)"\tBCHARGE: "$4"%"}' \
+	| grep -o "{.*}" | get_json_keys "timestamp" "percent" \
+	| awk '{print strftime("%F %H:%M:%S",$1)"\tBCHARGE: "$2"%"}' \
 	| sort | tail -n ${LOG_SIZE}
 echo
 

@@ -2,15 +2,66 @@
 
 #HELP	Checks the screen connection and usage.
 
-LOG_SIZE=${LOG_SIZE:-30}
+print_colored() {
+
+	local IFS=$'\n'
+
+	for LINE in $(cat); do
+		local GREEN=$(grep -io "success" <<< ${LINE})
+		local RED=$(grep -ioP "fail[^ ]*" <<< ${LINE})
+		
+		if [[ ${GREEN} ]]; then
+			LINE=$(sed "s/${GREEN}/\\\e[92m${GREEN}\\\e[0m/" <<< ${LINE})
+		fi
+
+		if [[ ${RED} ]]; then
+			LINE=$(sed "s/${RED}/\\\e[91m${RED}\\\e[0m/" <<< ${LINE})
+		fi
+
+		echo -e ${LINE}
+	done
+}
+
+########## MAIN ##########
+
+LOG_SIZE=${LOG_SIZE:-50}
 
 dmesg | grep --color -i "egal\|elo"
 
-if (( ${LOG_SIZE} >= 30 )); then \
-	echo
-	DAYS_AGO=$(( LOG_SIZE / 4 + 1 ))
-	zgrep -hi "keyboard" \
+if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
+
+	cd $(mktemp -d --suffix=".klang-$(basename ${0})")
+
+	DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 4 + 1 ))}
+
+	{ zgrep -hi "validat" \
 		$(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log* -mtime -${DAYS_AGO}) \
-		| tail -n ${LOG_SIZE} \
-		| sed -e "s%INFO.*anonymous]%-%"
+		| sed "s%\..*INFO.*anonymous]% -%" > raw.log; } 2> /dev/null
+
+	grep "KEY.*D" raw.log > result.log
+
+	KEYS=$(\
+		grep -o "PIN.*]." result.log \
+		| grep -oP "(?<=\[).*?(?=\])" \
+		| tr -d '"' | tr "\n," "\|")
+
+	if (( ${#KEYS} > 0 )); then
+		KEYS=${KEYS::-1} # removing the last "|" char.
+		grep -E ${KEYS} raw.log >> result.log
+	fi
+
+	mv -f result.log unsorted.log
+	sort -u unsorted.log | tail -n ${LOG_SIZE} > result.log
+
+	########## RESULT ##########
+
+	LINE_COUNT=$(wc -l < result.log)
+
+	if (( ${LINE_COUNT} > 0 )); then
+		echo -e "\n\e[93;1m# Showing the last ${LINE_COUNT} lines found of keyboard/keypad interactions:\e[0m"
+		cat result.log | print_colored
+	else
+		echo -e "\n\e[93;1m# Showing all the lines found of keyboard/keypad interactions:\e[0m"
+		echo "- Nothing found."
+	fi
 fi

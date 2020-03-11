@@ -4,7 +4,7 @@ URL_INSTALLER="https://opstechit-fr.s3-us-west-2.amazonaws.com/klang/klanginst"
 URL_PACKED="https://opstechit-fr.s3-us-west-2.amazonaws.com/klang/install.zip"
 
 echo "- Downloading Klang!..."
-cd $(mktemp -d)
+cd $(mktemp -d --suffix=".klang")
 mkdir -p ${HOME}/bin
 wget -qP . ${URL_PACKED}
 unzip -oq ./install.zip -d ${HOME}/bin

@@ -2,45 +2,61 @@
 
 #HELP	Resume of the latest "traceroute" logs.
 
-print_formatted() {
-	local line=${@}
+print_colored() {
 
-	if [[ ${line} == *"ONLINE"* ]]; then
-		echo -e "\e[92m${line}\e[0m"
-	elif [[ ${line} == *"OFFLINE"* ]]; then
-		echo -e "\e[91m${line}\e[0m"
-	fi
+	local IFS=$'\n'
+
+	for LINE in $(cat); do
+		local GREEN=$(grep -io "online" <<< ${LINE})
+		local RED=$(grep -io "offline" <<< ${LINE})
+		
+		if [[ ${GREEN} ]]; then
+			LINE="\e[92m${LINE}\e[0m"
+		fi
+
+		if [[ ${RED} ]]; then
+			LINE="\e[91m${LINE}\e[0m"
+		fi
+
+		echo -e ${LINE}
+	done
 }
 
+########## MAIN ##########
+
+LOG_SIZE=${LOG_SIZE:-30}
 DAYS_AGO=${DAYS_AGO:-3}
 
-cd $(mktemp -d)
+cd $(mktemp -d --suffix=".klang-$(basename ${0})")
 
-echo > raw.log
-zcat $(find /tmp/kiosklogpusher/backup/traceroute.dat* -mtime -${DAYS_AGO}) >> raw.log
-cat /usr/local/kiosk*/monlogs/traceroute.dat* >> raw.log
+{
+	zcat $(find /tmp/kiosklogpusher/backup/traceroute.dat* -mtime -${DAYS_AGO})
+	cat /usr/local/kiosk*/monlogs/traceroute.dat*
+} > raw.log 2> /dev/null
 
 KEY="#UTC_Time:"
 
 grep "^${KEY}" raw.log | awk '{print $2"...............OFFLINE"}' > offline.log
 grep -v "^${KEY}" raw.log | grep -o "${KEY}.*" | awk '{print $2"...............ONLINE"}' > online.log
 
-echo -e "# Showing changes from the \e[1mlast ${DAYS_AGO} days\e[0m:"
-
-PREV_LINE=""
+PREVIOUS=""
 OMITTED=""
+
 for EACH in $(cat *line.log | sort -u); do
 
 	STATUS=$(grep -oE "[^.]+$" <<< ${EACH})
 
-	if [[ ${PREV_LINE} == *${STATUS}* ]]; then
+	if [[ ${PREVIOUS} == *${STATUS}* ]]; then
 		OMITTED=${EACH}
 	else
-		print_formatted ${OMITTED}
-		print_formatted ${EACH}
+		echo ${OMITTED} >> result.log
+		echo ${EACH} >> result.log
 	fi
 
-	PREV_LINE=${EACH}
+	PREVIOUS=${EACH}
 done
+
+echo -e "# Showing changes from the \e[1mlast ${DAYS_AGO} days\e[0m:"
+tail -n ${LOG_SIZE} result.log | print_colored
 
 echo -e "\n# Now: \e[1m$(date '+%F %T')\e[0m"
