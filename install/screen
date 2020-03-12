@@ -45,9 +45,11 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 		| grep -oP "(?<=\[).*?(?=\])" \
 		| tr -d '"' | tr "\n," "\|")
 
+	touch result.log
+
 	if (( ${#KEYS} > 0 )); then
 		KEYS=${KEYS::-1} # removing the last "|" char.
-		grep -E ${KEYS} raw.log >> result.log
+		grep -E ${KEYS} raw.log > result.log
 	fi
 
 	mv -f result.log unsorted.log

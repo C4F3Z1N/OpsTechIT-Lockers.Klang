@@ -41,14 +41,14 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 		| sed "s%\..*INFO.*anonymous]% -%" > raw.log; } 2> /dev/null
 
 	KEYS=$(grep -oP "(?<=\[).*?(?=\])" raw.log \
-		| grep -iv "barcode" \
-		| tr -d '"' | tr "\n," "\|")
+		| tr "[]" "\n" | grep -v "{\|}" | grep -iv "barcode" \
+		| tr -d '"' | tr "\n," "\|" | uniq)
 
-	echo > result.log
+	touch result.log
 
-	if (( ${#KEYS} > 1 )); then
+	if (( ${#KEYS} > 0 )); then
 		KEYS=${KEYS::-1} # removing the last "|" char.
-		grep -E ${KEYS} raw.log >> result.log
+		grep -E ${KEYS} raw.log > result.log
 	fi
 
 	mv -f result.log unsorted.log
