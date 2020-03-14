@@ -1,7 +1,7 @@
 #!/bin/sh
 
-URL_INSTALLER="https://opstechit-fr.s3-us-west-2.amazonaws.com/klang/klanginst"
-URL_PACKED="https://opstechit-fr.s3-us-west-2.amazonaws.com/klang/install.zip"
+URL_INSTALLER="https://opstechit-fr.s3.amazonaws.com/klang/klanginst"
+URL_PACKED="https://opstechit-fr.s3.amazonaws.com/klang/install.zip"
 
 echo "- Downloading Klang!..."
 cd $(mktemp -d --suffix=".klang")
@@ -10,9 +10,9 @@ wget -qP . ${URL_PACKED}
 unzip -oq ./install.zip -d ${HOME}/bin
 chmod a+x ${HOME}/bin/*
 
-sed -i "s%.*${URL_INSTALLER}.*%%g" ${HOME}/.bashrc
+sed -i "s%^.*klang.*%%g" ${HOME}/.bashrc
 
-echo "wget -qO - ${URL_INSTALLER} | \${SHELL}" >> ${HOME}/.bashrc
+echo "wget -qO - \"${URL_INSTALLER}\" | \${SHELL}" >> ${HOME}/.bashrc
 
 echo "- Klang! successfully installed and it is ready to use!"
 echo "- Type klang to see the list of commands" | grep --color "klang\|"
