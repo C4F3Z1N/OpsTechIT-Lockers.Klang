@@ -2,24 +2,26 @@
 
 #HELP	Repeated Null Locker Controller Responses
 
-echo -e "\e[1;31mChecking dpcs logs for non-responding boards...\e[0m"
+print_formatted() { echo "# ${@}" | grep --color ".*"; }
 
-zgrep -i "PST.*Empty Response for IP" /tmp/kiosklogpusher/backup/Del* | sed "s/PST.*Command//g" | cut -d ":" -f 2- | tr -d '")'
-grep -i "PST.*Empty Response for IP" /usr/local/dpcs/DeliveryPointClientService.log | sed "s/PST.*Command//g" | cut -d ":" -f 1- | tr -d '")'
+########## MAIN ##########
 
-IP=$(boards | grep -i "192" | awk '{print $2}')
+OUTPUT=$(mktemp)
 
-echo -e "\n\n\e[1;31mPinging the switch...\n\e[0m"
+print_formatted "Checking DPCS logs for non-responding boards:"
 
-ping -c 10 -i 0.2 192.168.1.1
+{ zgrep -h "Empty Response for IP" \
+	$(find {/tmp/kiosklogpusher/backup,/usr/local/dpcs}/DeliveryPointClientService.log*) \
+	| sed -e "s/\..*PST.*Command/ -/" -e "s/\..*PDT.*Command/ -/" \
+	| tr -d '")' | sort >> ${OUTPUT}; } 2> /dev/null
 
-echo -e "\n\n\e[1;31mPinging all expected boards...\n\e[0m"
+(( $(wc -l < ${OUTPUT}) )) \
+	&& cat ${OUTPUT} \
+	|| echo "- Nothing found."
+echo
 
-for i in $IP
-do
-    ping -c 10 -i 0.2 $i
-    echo
-    echo
-done
+print_formatted "Ping results:"
+boards
+echo
 
-echo -n -e "\e[1;31mCurrent date: \e[0m"; date
+print_formatted "Current date:"; date +"%F %T"
