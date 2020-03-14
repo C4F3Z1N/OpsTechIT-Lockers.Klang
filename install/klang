@@ -47,7 +47,7 @@ def get_help(files):
 if __name__ == "__main__":
 
 	policy = "https://policy.amazon.com/procedure/62872"
-	authors = ["zbeyer", "jnoguei"]
+	authors = ["zbeyer", "jnoguei", "gezapork"]
 
 	print "# %s command list:" % format_text("OpsTechIT - Klang! - Kiosk Language", "yellow", bold = True)
 	print format_text("├ %s" % format_text(policy, "blue"), "gray")
