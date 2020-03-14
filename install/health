@@ -41,4 +41,7 @@ error
 format_msg "Latest AZBox logs:"
 azbox
 
+format_msg "USB/Scanner detection logs:"
+usbissue
+
 [[ ${LOG_SIZE_BKP} ]] && export LOG_SIZE=${LOG_SIZE_BKP} || unset LOG_SIZE

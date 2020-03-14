@@ -1,0 +1,27 @@
+#!/bin/bash
+
+#HELP	Temporary script for gathering information about the USB/Scanner issues.
+
+LOG_SIZE=${LOG_SIZE:-30}
+
+trim() { cat | sed -e "s/^[[:space:]]*//" -e "s/[[:space:]]*$//"; }
+
+OUTPUT=$(mktemp)
+sudo dmidecode > ${OUTPUT}
+
+LOG_PATH="/kiosk/var/log/usb_issue.log"
+KID=$(grep "kioskId" /var/tmp/kioskConfig.json | grep -o "[[:digit:]]*")
+
+if [ ! -f ${LOG_PATH} ]; then
+	sudo touch ${LOG_PATH}
+	sudo chown ${USER} ${LOG_PATH}
+	echo -e "$(date +'%F %T')\tKID: ${KID}\n\n" >> ${LOG_PATH}
+	grep "Product Name:" ${OUTPUT} | trim >> ${LOG_PATH}
+	echo >> ${LOG_PATH}
+	grep -A 3 "ARK-2232" ${OUTPUT} | trim >> ${LOG_PATH}
+	echo >> ${LOG_PATH}
+	sudo grep -A 3 "New USB device found" /var/log/messages >> ${LOG_PATH}
+fi
+
+head -n 1 ${LOG_PATH}
+grep -hv "$(head -n 1 ${LOG_PATH})" ${LOG_PATH} | tail -n ${LOG_SIZE}
