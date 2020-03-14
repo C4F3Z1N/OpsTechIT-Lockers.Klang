@@ -11,8 +11,6 @@ MINUTES_AGO=120
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/dpcs}/DeliveryPointClientService.log* -mmin -${MINUTES_AGO}) \
 	| sort >> ${OUTPUT}; } 2> /dev/null
 
-if (( $(wc -l ${OUTPUT} | awk '{print $1}') > 0 )); then
-	tail -n ${LOG_SIZE} ${OUTPUT}
-else
-	echo "- Nothing found."
-fi
+(( $(wc -l < ${OUTPUT}) )) \
+	&& tail -n ${LOG_SIZE} ${OUTPUT} \
+	|| echo "- Nothing found."

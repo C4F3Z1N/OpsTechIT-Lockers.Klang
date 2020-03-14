@@ -28,7 +28,7 @@ LOG_SIZE=${LOG_SIZE:-50}
 
 dmesg | grep --color -i "honey"
 echo
-ls /dev/tty.barcodeScanner | grep --color ".*"
+ls /dev/tty.barcodeScanner 2> >(grep --color ".*")
 
 if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 
@@ -46,7 +46,7 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 
 	touch result.log
 
-	if (( ${#KEYS} > 0 )); then
+	if (( ${#KEYS} )); then
 		KEYS=${KEYS::-1} # removing the last "|" char.
 		grep -E ${KEYS} raw.log > result.log
 	fi
@@ -58,7 +58,7 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 
 	LINE_COUNT=$(wc -l < result.log)
 
-	if (( ${LINE_COUNT} > 1 )); then
+	if (( ${LINE_COUNT} )); then
 		echo -e "\n\e[93;1m# Showing the last ${LINE_COUNT} lines found of keyboard/keypad interactions:\e[0m"
 		cat result.log | print_colored
 	else

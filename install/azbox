@@ -5,8 +5,6 @@
 LOG_SIZE=${LOG_SIZE:-30}
 LOG_PATH="/usr/local/tomcat/logs/azbox_ui.log"
 
-if (( ${LOG_SIZE} < 30 )); then
-	tail -n ${LOG_SIZE} ${LOG_PATH}
-else
-	tail -f ${LOG_PATH}
-fi
+(( ${LOG_SIZE} < 30 )) \
+	&& tail -n ${LOG_SIZE} ${LOG_PATH} \
+	|| tail -f ${LOG_PATH}

@@ -26,14 +26,14 @@ get_json_keys() {
 LOG_SIZE=${LOG_SIZE:-30}
 
 OUTPUT=$(mktemp)
-apcaccess >> ${OUTPUT}
+apcaccess > ${OUTPUT}
 
 sudo service apcupsd restart
 echo
 
 KEY="UPSBatteryPercentMetric"
 print_formatted ${KEY}
-grep ${KEY} /usr/local/kioskmonitoringtools/kioskwatcher.log* \
+grep -h "INFO.*${KEY}" /usr/local/kioskmonitoringtools/kioskwatcher.log* \
 	| grep -o "{.*}" | get_json_keys "timestamp" "percent" \
 	| awk '{print strftime("%F %H:%M:%S",$1)"\tBCHARGE: "$2"%"}' \
 	| sort | tail -n ${LOG_SIZE}
@@ -45,8 +45,8 @@ grep -ahi  "battery\|failure\|reached\|running\|shutdown\|startup" /var/log/apcu
 echo
 
 print_formatted "apcaccess"
-cat ${OUTPUT} | grep --color "STATUS\|BCHARGE\|"
-TIMELEFT=$(cat ${OUTPUT} | grep "TIMELEFT" | grep -o '[0-9.]*')
+grep --color "STATUS\|BCHARGE\|" ${OUTPUT}
+TIMELEFT=$(grep "TIMELEFT" ${OUTPUT} | grep -o '[0-9.]*')
 if (( ${TIMELEFT%.*} > 300 )); then
 	echo
 	print_formatted "*** UPS ALARM ***"
