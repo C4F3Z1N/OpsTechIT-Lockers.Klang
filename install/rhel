@@ -1,28 +1,33 @@
 #!/bin/bash
 
-#HELP   downloads and launches the RHEL environment.
-
-related_services() {
-
-    local services="S99DPCS iptables"
-
-    for EACH in ${services}; do
-        sudo service ${EACH} ${@}
-    done
-}
+#HELP	downloads and launches the RHEL environment.
 
 RHEL_URL="https://s3.amazonaws.com/azbox/AmazonTest_rhel7.v1.19"
 
-mkdir -p "/tmp/klang-data.$(date +%F)"
-cd "/tmp/klang-data.$(date +%F)"
+BIN=$(find /tmp/*klang* -name rhel 2> /dev/null | tail -n 1)
 
-if [ ! -f ./rhel ]; then
-    wget -O ./rhel ${RHEL_URL}
-    chmod a+x ./rhel
+if [ ! ${BIN} ]; then
+	cd $(mktemp -d --suffix=".klang-$(basename ${0})")
+	wget -O ./rhel ${RHEL_URL}
+else
+	cd $(dirname ${BIN})
 fi
 
-related_services stop
-sudo ./rhel eth1
-related_services restart
+echo "
+service S99DPCS stop
+service iptables stop
+chmod a+x ./rhel
+" | sudo -s
+echo
 
-exit ${?}
+sudo ./rhel eth1
+echo
+
+echo "
+chown -R ${USER} ${PWD}
+service S99DPCS restart
+service iptables restart
+" | sudo -s
+echo
+
+cat ./*$(date +%F).txt

@@ -20,8 +20,8 @@ print_formatted "Checking DPCS logs for non-responding boards:"
 	|| echo "- Nothing found."
 echo
 
-print_formatted "Ping results:"
-boards
+print_formatted "Current date:"; date +"%F %T"
 echo
 
-print_formatted "Current date:"; date +"%F %T"
+print_formatted "Ping results:"
+boards

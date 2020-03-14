@@ -8,7 +8,7 @@ print_colored() {
 
 	for LINE in $(cat); do
 		local GREEN=$(grep -io "success" <<< ${LINE})
-		local RED=$(grep -ioP "(fail[^ ]*|unknown)" <<< ${LINE})
+		local RED=$(grep -ioP "(error|fail[^ ]*|unknown)" <<< ${LINE})
 		
 		if [[ ${GREEN} ]]; then
 			LINE=$(sed "s/${GREEN}/\\\e[92m${GREEN}\\\e[0m/" <<< ${LINE})
@@ -40,15 +40,15 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 		$(find {/tmp/kiosklogpusher/backup,/usr/local/tomcat/logs}/azbox_ui.log* -mtime -${DAYS_AGO}) \
 		| sed "s%\..*INFO.*anonymous]% -%" > raw.log; } 2> /dev/null
 
-	KEYS=$(grep -oP "(?<=\[).*?(?=\])" raw.log \
-		| tr "[]" "\n" | grep -v "{\|}" | grep -iv "barcode" \
-		| tr -d '"' | tr "\n," "\|" | uniq)
+	grep -oP "(?<=\[).*?(?=\])" raw.log \
+		| tr "[]" "\n" | grep -v "{\|}" \
+		| grep -v "BARCODE\|KEY.*D\|JS_LOG" \
+		| tr -d '"' | tr ',' "\n" | uniq > keys.log
 
 	touch result.log
 
-	if (( ${#KEYS} )); then
-		KEYS=${KEYS::-1} # removing the last "|" char.
-		grep -E ${KEYS} raw.log > result.log
+	if (( $(wc -l < keys.log) )); then
+		grep -hf keys.log raw.log > result.log
 	fi
 
 	mv -f result.log unsorted.log
@@ -59,10 +59,10 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 	LINE_COUNT=$(wc -l < result.log)
 
 	if (( ${LINE_COUNT} )); then
-		echo -e "\n\e[93;1m# Showing the last ${LINE_COUNT} lines found of keyboard/keypad interactions:\e[0m"
+		echo -e "\n\e[93;1m# Showing the last ${LINE_COUNT} lines found of scanner interactions:\e[0m"
 		cat result.log | print_colored
 	else
-		echo -e "\n\e[93;1m# Showing all the lines found of keyboard/keypad interactions:\e[0m"
+		echo -e "\n\e[93;1m# Showing all the lines found of scanner interactions:\e[0m"
 		echo "- Nothing found."
 	fi
 fi

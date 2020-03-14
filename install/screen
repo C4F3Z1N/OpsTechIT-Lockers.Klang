@@ -40,16 +40,14 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 
 	grep "KEY.*D" raw.log > result.log
 
-	KEYS=$(\
-		grep -o "PIN.*]." result.log \
+	grep -o "PIN.*]." result.log \
 		| grep -oP "(?<=\[).*?(?=\])" \
-		| tr -d '"' | tr "\n," "\|")
+		| tr -d '"' | tr ',' "\n" | uniq > keys.log
 
 	touch result.log
 
-	if (( ${#KEYS} )); then
-		KEYS=${KEYS::-1} # removing the last "|" char.
-		grep -E ${KEYS} raw.log > result.log
+	if (( $(wc -l < keys.log) )); then
+		grep -hf keys.log raw.log > result.log
 	fi
 
 	mv -f result.log unsorted.log
