@@ -2,7 +2,24 @@
 
 #HELP	UPS charge and apcupsd report.
 
-print_formatted() { echo "# ${@}" | grep --color ".*"; }
+print_colored() { echo "# ${@}" | grep --color ".*"; }
+
+no_subsequent_repetition() {
+
+	local IFS=$'\n'
+
+	local KEY=${@}
+	local PREVIOUS
+
+	for CURRENT in $(cat); do
+
+		if [[ ${PREVIOUS} != *$(grep -o ${KEY} <<< ${CURRENT})* ]]; then
+			echo ${CURRENT}
+		fi
+
+		PREVIOUS=${CURRENT}
+	done
+}
 
 get_json_keys() {
 
@@ -23,33 +40,44 @@ get_json_keys() {
 
 ########## MAIN ##########
 
-LOG_SIZE=${LOG_SIZE:-30}
+cd $(mktemp -d --suffix=".klang-$(basename ${0})")
 
-OUTPUT=$(mktemp)
-apcaccess > ${OUTPUT}
+LOG_SIZE=${LOG_SIZE:-30}
+DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 10 + 1 ))}
+
+KEY="UPSBatteryPercentMetric"
+{ zgrep -ah "INFO.*${KEY}" \
+	$(find {/tmp/kiosklogpusher/backup,/usr/local/kioskmonitoringtools}/kioskwatcher.log* -mtime -${DAYS_AGO}) \
+	| grep -o "{.*}" | get_json_keys "timestamp" "percent" \
+	| awk '{print strftime("%F %H:%M:%S",$1)"\tBCHARGE: "$2"%"}' \
+	| sort > raw.log & } &> /dev/null
 
 sudo service apcupsd restart
 echo
 
-KEY="UPSBatteryPercentMetric"
-print_formatted ${KEY}
-grep -h "INFO.*${KEY}" /usr/local/kioskmonitoringtools/kioskwatcher.log* \
-	| grep -o "{.*}" | get_json_keys "timestamp" "percent" \
-	| awk '{print strftime("%F %H:%M:%S",$1)"\tBCHARGE: "$2"%"}' \
-	| sort | tail -n ${LOG_SIZE}
-echo
-
-print_formatted "apcupsd.events"
+print_colored "apcupsd.events"
 grep -ahi  "battery\|failure\|reached\|running\|shutdown\|startup" /var/log/apcupsd.events* \
 	| sort | tail -n ${LOG_SIZE}
 echo
 
-print_formatted "apcaccess"
-grep --color "STATUS\|BCHARGE\|" ${OUTPUT}
-TIMELEFT=$(grep "TIMELEFT" ${OUTPUT} | grep -o '[0-9.]*')
+wait &> /dev/null
+print_colored ${KEY}
+cat raw.log | no_subsequent_repetition "BCHARGE.*" > filtered.log
+if (( $(wc -l < filtered.log) > 1 )); then
+	mv filtered.log result.log
+else
+	mv raw.log result.log
+fi
+tail -n ${LOG_SIZE} result.log
+echo
+
+print_colored "apcaccess"
+apcaccess > apcaccess.log
+TIMELEFT=$(grep "TIMELEFT" apcaccess.log | grep -o "[0-9.]*")
+grep --color "STATUS\|BCHARGE\|" apcaccess.log
 if (( ${TIMELEFT%.*} > 300 )); then
 	echo
-	print_formatted "*** UPS ALARM ***"
+	print_colored "*** UPS ALARM ***"
 	echo "- Please ask the field engineer to connect the power strip to the UPS port labeled \"MASTER\". It is currently connected to the \"Controlled by MASTER\"."
 	sleep $(( LOG_SIZE / 7 + 1 ))
 fi

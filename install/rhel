@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#HELP	downloads and launches the RHEL environment.
+#HELP	Downloads and launches the RHEL environment.
 
 RHEL_URL="https://s3.amazonaws.com/azbox/AmazonTest_rhel7.v1.19"
 
@@ -30,4 +30,4 @@ service iptables restart
 " | sudo -s
 echo
 
-cat ./*$(date +%F).txt
+tail ./*$(date +%F).txt

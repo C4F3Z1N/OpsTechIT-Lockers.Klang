@@ -26,9 +26,9 @@ print_colored() {
 
 LOG_SIZE=${LOG_SIZE:-50}
 
+ls /dev/tty.barcodeScanner 2> >(grep --color ".*")
 dmesg | grep --color -i "honey"
 echo
-ls /dev/tty.barcodeScanner 2> >(grep --color ".*")
 
 if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 
@@ -51,7 +51,7 @@ if (( ${LOG_SIZE} >= 20 )); then # It won't run on "health" command.
 		grep -hf keys.log raw.log > result.log
 	fi
 
-	mv -f result.log unsorted.log
+	mv result.log unsorted.log
 	sort -u unsorted.log | tail -n ${LOG_SIZE} > result.log
 
 	########## RESULT ##########
