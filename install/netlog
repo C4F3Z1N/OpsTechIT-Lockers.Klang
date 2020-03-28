@@ -25,32 +25,32 @@ print_colored() {
 ########## MAIN ##########
 
 LOG_SIZE=${LOG_SIZE:-30}
-DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 3 + 1 ))}
+DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 7 + 1 ))}
 
 cd $(mktemp -d --suffix=".klang-$(basename ${0})")
 
-{
-	zcat $(find /tmp/kiosklogpusher/backup/traceroute.dat* -mtime -${DAYS_AGO})
-	cat /usr/local/kiosk*/monlogs/traceroute.dat*
-} &> raw.log
-
 KEY="#UTC_Time:"
+
+zgrep -ah ${KEY} \
+	$(find {/tmp/kiosklogpusher/backup,/usr/local/kiosk*/monlogs}/traceroute.dat* \
+	-mtime -${DAYS_AGO}) \
+	&> raw.log
 
 grep "^${KEY}" raw.log | awk '{print $2"...............OFFLINE"}' > offline.log
 grep -v "^${KEY}" raw.log | grep -o "${KEY}.*" | awk '{print $2"...............ONLINE"}' > online.log
 
-for EACH in $(sort -u *line.log); do
+for LINE in $(sort -u *line.log); do
 
-	if [[ ${PREVIOUS} != *$(grep -oE "[^.]+$" <<< ${EACH})* ]]; then
-		echo ${EACH} >> processed.log
+	if [[ ${PREVIOUS} != *$(grep -oE "[^.]+$" <<< ${LINE})* ]]; then
+		echo ${LINE} >> processed.log
 	fi
 
-	PREVIOUS=${EACH}
+	PREVIOUS=${LINE}
 done
 
 tail -n ${LOG_SIZE} processed.log > result.log
 
-echo -e "# Showing the last $(wc -l < result.log) lines from the past ${DAYS_AGO} days:"
+echo -e "# Showing the last $(wc -l < result.log) events from the past ${DAYS_AGO} days:"
 cat result.log | print_colored
 
 echo -e "\e[1m$(date '+%F-%T' | tr ':' '-')...............NOW\e[0m"

@@ -2,7 +2,7 @@
 
 #HELP	Downloads and launches the RHEL environment.
 
-RHEL_URL="https://s3.amazonaws.com/azbox/AmazonTest_rhel7.v1.19"
+RHEL_URL=${RHEL_URL:-"https://s3.amazonaws.com/azbox/AmazonTest_rhel7.v1.19"}
 
 BIN=$(find /tmp/*klang* -name rhel 2> /dev/null | tail -n 1)
 
@@ -11,6 +11,12 @@ if [ ! ${BIN} ]; then
 	wget -O ./rhel ${RHEL_URL}
 else
 	cd $(dirname ${BIN})
+fi
+
+FIRMWARE_URL=${FIRMWARE_URL:-"https://s3.amazonaws.com/azbox/v2.08.bin"}
+
+if [ ! -f $(basename ${FIRMWARE_URL}) ]; then
+	wget -P . ${FIRMWARE_URL}
 fi
 
 echo "
@@ -24,7 +30,7 @@ sudo ./rhel eth1
 echo
 
 echo "
-chown -R ${USER} ${PWD}
+chown -R ${USER} .
 service S99DPCS restart
 service iptables restart
 " | sudo -s

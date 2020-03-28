@@ -2,9 +2,8 @@
 
 #HELP   General health check.
 
-format_msg() { echo -e "\n\n\n┌───────────#\t${@}" | grep --color ".*"; }
+format_msg() { echo -e "\n\n\n\e[1;96m┌───────────#\t${@}\e[0m"; }
 
-LOG_SIZE_BKP=${LOG_SIZE}
 export LOG_SIZE=${LOG_SIZE:-15}
 
 format_msg "OS version, image date:"
@@ -43,5 +42,3 @@ azbox
 
 format_msg "USB/Scanner detection logs:"
 usbissue
-
-[[ ${LOG_SIZE_BKP} ]] && export LOG_SIZE=${LOG_SIZE_BKP} || unset LOG_SIZE

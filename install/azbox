@@ -2,9 +2,10 @@
 
 #HELP   Latest AZBox logs (tail).
 
-LOG_SIZE=${LOG_SIZE:-30}
 LOG_PATH="/usr/local/tomcat/logs/azbox_ui.log"
 
-(( ${LOG_SIZE} < 30 )) \
-	&& tail -n ${LOG_SIZE} ${LOG_PATH} \
-	|| tail -f ${LOG_PATH}
+if [ ${LOG_SIZE} ]; then
+	tail -n ${LOG_SIZE} ${LOG_PATH}
+else
+	tail -f ${LOG_PATH}
+fi

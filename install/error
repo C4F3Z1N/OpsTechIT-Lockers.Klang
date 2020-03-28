@@ -2,8 +2,6 @@
 
 #HELP   Latest DPCS error logs (tail).
 
-LOG_SIZE=${LOG_SIZE:-30}
-
 OUTPUT=$(mktemp -u)
 MINUTES_AGO=120
 
@@ -12,5 +10,5 @@ MINUTES_AGO=120
 	| sort >> ${OUTPUT}; } 2> /dev/null
 
 (( $(wc -l < ${OUTPUT}) )) \
-	&& tail -n ${LOG_SIZE} ${OUTPUT} \
+	&& tail -n ${LOG_SIZE:-50} ${OUTPUT} \
 	|| echo "- Nothing found."
