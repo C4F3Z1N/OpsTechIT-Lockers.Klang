@@ -24,7 +24,7 @@ print_colored() {
 
 ########## MAIN ##########
 
-LOG_SIZE=${LOG_SIZE:-30}
+LOG_SIZE=${LOG_SIZE:-50}
 DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 7 + 1 ))}
 
 cd $(mktemp -d --suffix=".klang-$(basename ${0})")
