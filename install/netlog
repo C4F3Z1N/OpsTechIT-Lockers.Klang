@@ -33,8 +33,8 @@ KEY="#UTC_Time:"
 
 zgrep -ah ${KEY} \
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/kiosk*/monlogs}/traceroute.dat* \
-	-mtime -${DAYS_AGO}) \
-	&> raw.log
+	-mtime -${DAYS_AGO} 2> /dev/null) \
+	> raw.log
 
 grep "^${KEY}" raw.log | awk '{print $2"...............OFFLINE"}' > offline.log
 grep -v "^${KEY}" raw.log | grep -o "${KEY}.*" | awk '{print $2"...............ONLINE"}' > online.log
