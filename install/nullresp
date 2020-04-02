@@ -6,22 +6,33 @@ print_formatted() { echo "# ${@}" | grep --color ".*"; }
 
 ########## MAIN ##########
 
-OUTPUT=$(mktemp)
+OUTPUT=$(mktemp -u)
 
 print_formatted "Checking DPCS logs for non-responding boards:"
 
 { zgrep -h "Empty Response for IP" \
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/dpcs}/DeliveryPointClientService.log*) \
 	| sed -e "s/\..*PST.*Command/ -/" -e "s/\..*PDT.*Command/ -/" \
-	| tr -d '")' | sort >> ${OUTPUT}; } 2> /dev/null
+	| tr -d '")' | sort > ${OUTPUT}; } 2> /dev/null
 
-(( $(wc -l < ${OUTPUT}) )) \
+LINE_COUNT=$(wc -l < ${OUTPUT})
+(( ${LINE_COUNT} )) \
 	&& cat ${OUTPUT} \
 	|| echo "- Nothing found."
-echo
 
-print_formatted "Current date:"; date +"%F %T"
 echo
+print_formatted "Current date/time:"
+date +"%F %T"
 
+echo
 print_formatted "Ping results:"
 boards
+
+echo
+print_formatted "Latest AZBox logs:"
+if [ ! ${LOG_SIZE} ] && (( ${LINE_COUNT} )); then
+	export LOG_SIZE=${LINE_COUNT}
+else
+	export LOG_SIZE=${LOG_SIZE:-30}
+fi
+azbox
