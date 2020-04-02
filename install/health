@@ -40,5 +40,5 @@ error
 format_msg "Latest AZBox logs:"
 azbox
 
-format_msg "USB/Scanner detection logs:"
-usbissue
+# format_msg "USB/Scanner detection logs:"
+# usbissue
