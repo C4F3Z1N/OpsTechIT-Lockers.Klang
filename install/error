@@ -7,7 +7,7 @@ MINUTES_AGO=120
 
 { zgrep -h "ERROR" \
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/dpcs}/DeliveryPointClientService.log* -mmin -${MINUTES_AGO}) \
-	| sort >> ${OUTPUT}; } 2> /dev/null
+	| sort > ${OUTPUT}; } 2> /dev/null
 
 (( $(wc -l < ${OUTPUT}) )) \
 	&& tail -n ${LOG_SIZE:-50} ${OUTPUT} \
