@@ -2,7 +2,7 @@
 
 #HELP	UPS charge and apcupsd report.
 
-print_colored() { echo "# ${@}" | grep --color ".*"; }
+print_formatted() { echo "# ${@}" | grep --color ".*"; }
 
 no_subsequent_repetition() {
 
@@ -38,47 +38,65 @@ get_json_keys() {
 	EOF
 }
 
+timeout_kill() {
+
+	local TIMEOUT=${1}
+	local PID=${2}
+	local WATCHER
+	# local START=$(date +%s)
+
+	( sleep ${TIMEOUT} && kill -HUP ${PID} ) 2> /dev/null & WATCHER=$!
+	wait ${PID} 2> /dev/null
+	pkill -HUP -P ${WATCHER} 2> /dev/null
+	# echo "duration: $(($(date +%s) - START))/${TIMEOUT}s"
+}
+
 ########## MAIN ##########
 
 cd $(mktemp -d --suffix=".klang-$(basename ${0})")
 
 LOG_SIZE=${LOG_SIZE:-30}
-DAYS_AGO=${DAYS_AGO:-$(( LOG_SIZE / 10 + 1 ))}
+DAYS_AGO=${DAYS_AGO:-$((LOG_SIZE / 10 + 1))}
 
 KEY="UPSBatteryPercentMetric"
 { zgrep -ah "INFO.*${KEY}" \
 	$(find {/tmp/kiosklogpusher/backup,/usr/local/kioskmonitoringtools}/kioskwatcher.log* -mtime -${DAYS_AGO}) \
 	| grep -o "{.*}" | get_json_keys "timestamp" "percent" \
 	| awk '{print strftime("%F %H:%M:%S",$1)"\tBCHARGE: "$2"%"}' \
-	| sort > raw.log & } &> /dev/null
+	| sort > raw.log; } 2> /dev/null & PID=$!
 
-apcaccess > apcaccess.log
+apcaccess &> apcaccess.log
 sudo service apcupsd restart
-echo
 
-print_colored "apcupsd.events"
+echo
+print_formatted "apcupsd.events"
 grep -ahi  "battery\|failure\|reached\|running\|shutdown\|startup" /var/log/apcupsd.events* \
 	| sort | tail -n ${LOG_SIZE}
-echo
 
-wait &> /dev/null
-print_colored ${KEY}
-cat raw.log | no_subsequent_repetition "BCHARGE.*" > filtered.log
-if (( $(wc -l < filtered.log) > 1 )); then
-	mv filtered.log result.log
+echo
+print_formatted ${KEY}
+timeout_kill $((LOG_SIZE * 2)) ${PID}
+
+if (( $(wc -l < raw.log) )); then
+	cat raw.log | no_subsequent_repetition "BCHARGE.*" > filtered.log
+	if (( $(wc -l < filtered.log) > 1 )); then
+		mv -f filtered.log result.log
+	else
+		mv -f raw.log result.log
+	fi
 else
-	mv raw.log result.log
+	echo "- Nothing found." > result.log
 fi
 tail -n ${LOG_SIZE} result.log
-echo
 
-print_colored "apcaccess"
+echo
+print_formatted "apcaccess"
 sed -i "s/$(date +%F).*/$(date +'%F %T')/" apcaccess.log
-TIMELEFT=$(grep "TIMELEFT" apcaccess.log | grep -o "[0-9.]*")
+TIMELEFT=$(grep "TIMELEFT" apcaccess.log | grep -o "[[:digit:]]*" | head -n 1)
 grep --color "STATUS\|BCHARGE\|" apcaccess.log
-if [[ ${TIMELEFT%.*} -gt 300 ]]; then
+if [[ ${TIMELEFT} -gt 300 ]]; then
 	echo
-	print_colored "*** UPS ALARM ***"
+	print_formatted "*** UPS ALARM ***"
 	echo "- Please ask the field engineer to connect the power strip to the UPS port labeled \"MASTER\". It is currently connected to the \"Controlled by MASTER\"."
 	sleep $(( LOG_SIZE / 7 + 1 ))
 fi
