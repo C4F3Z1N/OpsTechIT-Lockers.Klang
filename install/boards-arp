@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#HELP   Checks the arp table and reports all cases of non-reachable PCBs or SVB
+#https://tt.amazon.com/0308887959
+
+cd $(mktemp -d)
+
+echo -e "\n\e[1;31mReading the expected IPs list...\n\e[0m"
+
+IPS=$(boards | grep -i "192" | awk '{print $2}')
+
+for h in $IPS
+do
+    echo $h
+done
+
+TIME=$(zgrep "UTC" /tmp/kiosklogpusher/backup/arp.dat.* | awk '{print $2}')
+
+for i in $IPS
+do
+    touch arp$i.log
+    echo -e "\n\e[1;31mChecking arp tables for $i...\n\e[0m"
+    zgrep -h "UTC\|$i" /tmp/kiosklogpusher/backup/arp.dat.* > arp$i.log
+    for j in $TIME
+    do
+        ARP_ENTRY=$(grep -A 1 "$j" arp$i.log | grep "192" | awk '{print $4, $7}' | tr -cd '[:print:]' )
+        if [[ "$ARP_ENTRY" == *"00:00:00:00:00:00"* ]] || [ -z "$ARP_ENTRY" ]
+        then
+            echo "$i was not reachable at $j UTC"
+        fi
+    done
+done
+
+echo
+echo -n -e "\e[1;31mUTC date: \e[0m"; date -u
