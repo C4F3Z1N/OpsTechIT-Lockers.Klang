@@ -94,9 +94,28 @@ print_formatted "apcaccess"
 sed -i "s/$(date +%F).*/$(date +'%F %T')/" apcaccess.log
 TIMELEFT=$(grep "TIMELEFT" apcaccess.log | grep -o "[[:digit:]]*" | head -n 1)
 grep --color "STATUS\|BCHARGE\|" apcaccess.log
+
+ALARM_MSG=""
+
 if [[ ${TIMELEFT} -gt 300 ]]; then
+	ALARM_MSG="${ALARM_MSG}\n- Please ask the field engineer to connect the power strip to the UPS port labeled \"MASTER\". It is currently connected to the \"Controlled by MASTER\" port."
+fi
+
+case $(grep "STATUS" apcaccess.log | awk -F ':' '{print $2}') in
+	*"OVERLOAD"*) ALARM_MSG="${ALARM_MSG}\n- Electrical system issue detected, ask Vendor to measure Mains with the Martindale tester" ;;
+	*"SHUTTING"*) ALARM_MSG="${ALARM_MSG}\n- Error state detected, apcupsd will initiate a system shutdown shortly. If the battery levels are not low, restarting the apcupsd daemon should solve the issue. If state remains the same after daemon restart, UPS might be faulty" ;;
+	*"ONBATT"*) ALARM_MSG="${ALARM_MSG}\n- Locker is running on UPS batteries, no power coming into the UPS from Mains" ;;
+	*"LOWBATT"*) ALARM_MSG="${ALARM_MSG}\n- Check if BCHARGE is low. If BCHARGE is 100%, ask Vendor to replace faulty UPS because the batteries are damaged" ;;
+	*"REPLACEBATT"*) ALARM_MSG="${ALARM_MSG}\n- UPS batteries are exhausted, ask Vendor to replace UPS" ;;
+	*"NOBATT"*) ALARM_MSG="${ALARM_MSG}\n- UPS batteries are not detected or dead; UPS should be replaced" ;;
+	*"COMMLOST"*) ALARM_MSG="${ALARM_MSG}\n- The UPS is not properly detected or badly configured. Re-seat UPS batteries and cable connections. Disconnect UPS from Mains and check if maintains Locker on batteries" ;;
+esac
+
+if [[ -n ${ALARM_MSG} ]]; then
+
 	echo
 	print_formatted "*** UPS ALARM ***"
-	echo "- Please ask the field engineer to connect the power strip to the UPS port labeled \"MASTER\". It is currently connected to the \"Controlled by MASTER\"."
+	echo -e ${ALARM_MSG} | sed "/^$/d"
 	sleep $(( LOG_SIZE / 7 + 1 ))
 fi
+
