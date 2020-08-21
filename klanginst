@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/sh -e
 
 URL_INSTALLER="https://opstechit-fr.s3.amazonaws.com/klang/klanginst"
 URL_PACKED="https://opstechit-fr.s3.amazonaws.com/klang/install.zip"
 
 echo "- Downloading Klang!..."
-cd $(mktemp -d --suffix=".klang")
+cd $(mktemp -d --suffix=".klanginst")
 mkdir -p ${HOME}/bin
 wget -qP . ${URL_PACKED}
 unzip -oq ./install.zip -d ${HOME}/bin
@@ -16,3 +16,16 @@ echo "wget -qO - \"${URL_INSTALLER}\" | \${SHELL}" >> ${HOME}/.bashrc
 
 echo "- Klang! successfully installed and it is ready to use!"
 echo "- Type klang to see the list of commands" | grep --color "klang\|"
+
+# WORKDIR="/opt/klang"
+
+# sudo mkdir -pv ${WORKDIR}
+# sudo chown -Rv ${USER} ${WORKDIR}
+
+# VENV=$(mktemp -u)
+# PYVER=$(python -c "from sys import version_info; print('.'.join(map(str, version_info[0:2])))")
+# wget -O ${VENV} "https://bootstrap.pypa.io/virtualenv/${PYVER}/virtualenv.pyz"
+
+# python ${VENV} ${WORKDIR}
+# . ${WORKDIR}/bin/activate
+# pip install -r requirements.txt
