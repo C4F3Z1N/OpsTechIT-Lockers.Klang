@@ -3,43 +3,51 @@
 
 
 from common import (
-    date_range,
+    cmd_exec,
     fetch,
     format_output,
     getenv,
+    logger,
     mac_address,
+    path,
     parse_datetime,
-    randrange,
+    read_logs,
     table
 )
 
 
 def main():
 
-    data = {"modem": mac_address("192.168.15.1")}
+    log_size = int(getenv("LOG_SIZE", 30))
 
-    try:
-        data.update(connection_info())
-    except Exception:
-        pass
-
-    data = [(format_output(k, bold=True), v) for k, v in data.items()]
+    route_ip = False
+    for line in str(cmd_exec("ip route", interactive=False)).split("\n"):
+        if "default" in line:
+            route_ip = line.split()[2]
+            break
 
     print(format_output("[INFO] Connection details:", "yellow"))
-    print(table(sorted(data), tablefmt="plain"))
+    data = {"modem": mac_address(route_ip or "192.168.15.1")}
+    try:
+        data.update(connection_info())
+    except Exception as exception:
+        logger.debug(exception)
+
+    data = [(format_output(k, bold=True), data[k]) for k in data]
+    print(table(sorted(data)))
 
     print("\n")
 
     headers = ["Date/time", "Status", "When"]
     data = list()
-    path = [
-        "/tmp/kiosklogpusher/backup/traceroute.dat*",
-        "/usr/local/kioskmonitoringtools/monlogs/traceroute.dat*"
-    ]
+    log_path = (path.join(p, "traceroute.dat*") for p in (
+        "/tmp/kiosklogpusher/backup",
+        "/usr/local/kioskmonitoringtools/monlogs"
+    ))
 
-    logsize = int(getenv("LOG_SIZE", 30))
+    print(format_output("[INFO] Connection logs:", "yellow"))
 
-    for d, s in read_logs(logsize / 15 or 1, path)[-logsize:]:
+    for d, s in logs(log_path, log_size / 15 or 1)[-log_size:]:
         line = [
             d,
             "Online" if s else "Offline",
@@ -50,49 +58,26 @@ def main():
 
     headers = [format_output(text, bold=True) for text in headers]
 
-    print(format_output("[INFO] Connection logs:", "yellow"))
-    if len(data):
-        print(table(data, headers=headers, tablefmt="plain"))
+    if data:
+        print(table(data, headers=headers))
 
     else:
         print("- Nothing found.")
 
 
-def read_logs(days_ago, logs_path):
-    from glob import glob
-    from gzip import open as gz_open
+def logs(log_path, days_ago):
 
-    if days_ago > 0:
-        days_ago *= -1
+    result = list()
 
-    if not isinstance(logs_path, list):
-        logs_path = [logs_path]
+    for line in read_logs(log_path, days_ago):
+        if "#UTC_Time:" in line:
+            line = line.split()
+            result.append((
+                parse_datetime(line[-2], "YYYY-MM-DD-HH-mm-ss"),
+                len(line) > 3
+            ))
 
-    processed, included, result = (list(), list(), list())
-
-    for g in map(glob, logs_path):
-        processed += g
-
-    for d in map(str, date_range(days_ago)):
-        included += [path for path in processed if d in path]
-
-    for i in included:
-        if i.split('.')[-1] == "gz":
-            f_open = gz_open
-
-        else:
-            f_open = open
-
-        for line in f_open(i).readlines():
-            if "#UTC_Time:" in line:
-                line = line.split()
-                result.append((
-                    parse_datetime(line[-2], "YYYY-MM-DD-HH-mm-ss"),
-                    len(line) > 3
-                ))
-
-    if len(result):
-
+    if result:
         result = sorted(result)
         filtered = [result[0]]
         for r in result:
@@ -104,33 +89,32 @@ def read_logs(days_ago, logs_path):
 
 def connection_info():
 
-    apis = [
-        "http://ip-api.com/json",
-        "http://ipinfo.io",
-        "http://ipwhois.app/json/"
-    ]
+    api = "http://ip-api.com/json"
 
     attributes = [
         "country",
         "city",
         "ip",
+        "query",
         "isp",
         "org",
     ]
 
-    queries = [fetch(url) for url in apis]
-    queries = [q.json() for q in queries if int(q.status_code) == 200]
+    result = fetch(api)
 
-    result = list()
+    if int(result.status_code) == 200:
+        result = {
+            key: value
+            for key, value in result.json().items()
+            if key in attributes
+        }
 
-    for q in queries:
-        if "query" in q:
-            q["ip"] = q.pop("query")
+        if "query" in result:
+            result["ip"] = result.pop("query")
 
-        result.append({a: q[a] for a in attributes if a in q})
+        result["source"] = api
 
-    if result:
-        return result[randrange(len(result))]
+        return result
 
 
 if __name__ == "__main__":

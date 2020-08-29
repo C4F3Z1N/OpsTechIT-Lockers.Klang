@@ -3,15 +3,15 @@
 
 from contextlib import contextmanager
 from datetime import date, timedelta
+from glob import glob
 from os import chdir, getenv, getcwd, path
-from random import randrange
 from requests import Session
 from requests.packages.urllib3 import disable_warnings
-from tabulate import tabulate as table
-import logging as logger
+import logging as _logger
 
 
-logger.basicConfig(level=logger.DEBUG)
+_logger.basicConfig(level=_logger.DEBUG)
+logger = _logger
 
 
 def cmd_exec(command, interactive=True, shell=False):
@@ -19,8 +19,6 @@ def cmd_exec(command, interactive=True, shell=False):
 
     if isinstance(command, str):
         command = command.split()
-
-    # TODO: manage to identify "sudo" in a better way.
 
     if filter(path.dirname, command):
         i = command.index(filter(path.dirname, command)[0])
@@ -110,7 +108,6 @@ def fetch(url, headers=None, warnings=False, verify=False):
 
 
 def parse_datetime(raw, template=None, humanize=False):
-
     from arrow import get
 
     if template:
@@ -119,7 +116,7 @@ def parse_datetime(raw, template=None, humanize=False):
     else:
         result = get(raw)
 
-    return result.humanize() if humanize else result.datetime
+    return result.humanize() if humanize else result.to("local").datetime
 
 
 def date_range(num, start=date.today()):
@@ -139,8 +136,40 @@ def mac_address(ip):
             return str(n.split()[-2]).upper()
 
 
+def table(content, headers=()):
+    from tabulate import tabulate
+
+    return tabulate(content, headers=headers, tablefmt="plain")
+
+
+def read_logs(log_path, days_ago=None):
+    from gzip import open as gz_open
+
+    if isinstance(log_path, str):
+        raise TypeError("'str' is not accepted.")
+    else:
+        iter(log_path)
+
+    expanded = set()
+    for g in map(glob, log_path):
+        expanded.update(g)
+
+    if days_ago:
+        days_ago *= -1 if days_ago > 0 else 1
+        log_path = set()
+        for d in map(str, date_range(days_ago)):
+            log_path.update([path for path in expanded if d in path])
+    else:
+        log_path = expanded
+
+    result = set()
+    for i in log_path:
+        file_open = gz_open if i.split('.')[-1].lower() == "gz" else open
+        result.update(file_open(i).readlines())
+
+    return sorted(result) if result else None
+
+
 def tmp():
     getenv("USER")
-    randrange(1)
-    table()
     pass

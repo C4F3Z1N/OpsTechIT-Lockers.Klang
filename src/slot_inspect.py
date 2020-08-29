@@ -115,7 +115,7 @@ def slot_print(slots, full=True):
 
     header = [format_output(h, bold=True) for h in header]
 
-    print(table(data, headers=header, tablefmt="plain"))
+    print(table(data, headers=header))
 
 
 def json():

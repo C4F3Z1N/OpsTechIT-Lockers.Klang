@@ -4,26 +4,57 @@
 
 from common import (
     cmd_exec,
-    date_range,
     format_output,
     getenv,
+    logger,
     parse_datetime,
+    path,
+    read_logs,
     table
 )
+from time import sleep
+
+
+f_datetime = "YYYY-MM-DD HH:mm:ss Z"
 
 
 def main():
 
-    headers = ["Date/time", "BCHARGE", "When"]
-    data = list()
-    path = [
-        "/tmp/kiosklogpusher/backup/kioskwatcher.log*",
-        "/usr/local/kioskmonitoringtools/kioskwatcher.log*"
-    ]
-
     logsize = int(getenv("LOG_SIZE", 30))
 
-    for d, s, m in read_logs(logsize / 15 or 1, path)[-logsize:]:
+    print(format_output("[INFO] apcupsd service:", "yellow"))
+    assert cmd_exec("sudo service apcupsd restart")
+
+    print("\n")
+
+    print(format_output("[INFO] apcupsd events:", "yellow"))
+
+    headers = (
+        format_output(text, bold=True)
+        for text in ("Date/time", "Message")
+    )
+    data = events()[-logsize:]
+
+    if len(data):
+        print(table(data, headers=headers))
+    else:
+        print("- Nothing found.")
+
+    print("\n")
+
+    headers = (
+        format_output(text, bold=True)
+        for text in ("Date/time", "BCHARGE", "When")
+    )
+    data = list()
+    log_path = (path.join(p, "kioskwatcher.log*") for p in (
+        "/tmp/kiosklogpusher/backup",
+        "/usr/local/kioskmonitoringtools"
+    ))
+
+    print(format_output("[INFO] UPSBatteryPercentMetric:", "yellow"))
+
+    for d, s, m in logs(log_path, logsize / 15 or 1)[-logsize:]:
         if s >= 50:
             color = "green"
         elif s >= 20:
@@ -34,66 +65,58 @@ def main():
         line = [d, "%s %d%%" % (m, s), parse_datetime(d, humanize=True)]
         data.append([format_output(i, color) for i in line])
 
-    headers = [format_output(text, bold=True) for text in headers]
-
-    print(format_output("[INFO] UPSBatteryPercentMetric:", "yellow"))
-    if len(data):
-        print(table(data, headers=headers, tablefmt="plain"))
-
+    if data:
+        print(table(data, headers=headers))
     else:
         print("- Nothing found.")
 
     print("\n")
 
-    important = ["STATUS", "BCHARGE", "ALARMMSG"]
-    data = list()
-    source = apcaccess()
+    print(format_output("[INFO] apcaccess:", "yellow"))
 
-    # if "ALARMMSG" in source:
-    #     alarm = source.pop("ALARMMSG")
+    source = apcaccess()
+    count = 3
+    while not source and count:
+        sleep(count)
+        source = apcaccess()
+        count -= 1
+
+    if not source:
+        return source
+
+    important = ("STATUS", "BCHARGE")
+    data = list()
+
+    if "ALARMMSG" in source:
+        alarm = source.pop("ALARMMSG")
+    else:
+        alarm = None
 
     for k, v in source.items():
         k = format_output(k, "yellow" if k in important else None, True)
         data.append((k, v))
 
-    print(format_output("[INFO] apcaccess:", "yellow"))
-    print(table(data, tablefmt="plain"))
+    print(table(data))
+
+    if alarm:
+        print("\n")
+        print(format_output("[WARN] UPS alarm:", "red", True))
+        print(format_output(alarm, bold=True))
 
 
-def read_logs(days_ago, logs_path):
-    from glob import glob
-    from gzip import open as gz_open
+def logs(log_path, days_ago):
     from json import loads
 
-    if days_ago > 0:
-        days_ago *= -1
+    result = list()
 
-    if not isinstance(logs_path, list):
-        logs_path = [logs_path]
-
-    processed, included, result = (list(), list(), list())
-
-    for g in map(glob, logs_path):
-        processed += g
-
-    for d in map(str, date_range(days_ago)):
-        included += [path for path in processed if d in path]
-
-    for i in included:
-        if i.split('.')[-1].lower() == "gz":
-            f_open = gz_open
-
-        else:
-            f_open = open
-
-        for line in f_open(i).readlines():
-            if "UPSBatteryPercentMetric" in line:
-                line = loads(line.split("metric:")[-1])
-                result.append([
-                    parse_datetime(int(line["timestamp"])),
-                    int(line["percent"]),
-                    '~'
-                ])
+    for line in read_logs(log_path, days_ago):
+        if "UPSBatteryPercentMetric" in line:
+            line = loads(line.split("metric:")[-1])
+            result.append([
+                parse_datetime(int(line["timestamp"])),
+                int(line["percent"]),
+                '~'
+            ])
 
     if result:
         result = sorted(result)
@@ -118,51 +141,87 @@ def apcaccess():
                 key = line.split(':')[0]
                 result[key.strip()] = line.split("%s:" % key)[-1].strip()
 
+        dt_fields = ("STARTTIME", "DATE", "END APC")
+        result.update({
+            k: parse_datetime(result[k], f_datetime)
+            for k in result if k in dt_fields
+        })
+
         alarm_msg = {
-            "OVERLOAD": "\
-                - Electrical system issue detected. Ask vendor \
-                to measure mains with the Martindale tester.",
-            "SHUTTING":
-                "- Error state detected. \"apcupsd\" will initiate a \
-                system shutdown shortly. If the battery levels are \
-                not low, restarting the \"apcupsd\" daemon should \
-                solve the issue. If state remains the same after \
-                daemon restart, UPS might be faulty.",
-            "ONBATT":
-                "- Kiosk is running on UPS batteries. There is no power \
-                coming into the UPS from Mains.",
-            "LOWBATT":
-                "- Check if BCHARGE is low. If it is 100%, ask vendor to \
-                replace faulty UPS because the batteries are damaged.",
-            "REPLACEBATT":
-                "- UPS batteries are exhausted. \
-                Ask vendor to replace the UPS.",
-            "NOBATT":
-                "- UPS batteries are dead/not detected. \
-                UPS should be replaced.",
-            "COMMLOST":
-                "- UPS is not properly detected or badly configured. \
-                Re-seat UPS batteries and cable connections. Disconnect UPS \
-                from Mains and check if maintains Locker on batteries."
+            a: " ".join(m.split())
+            for a, m in {
+                "OVERLOAD":
+                    "- Electrical system issue detected. Ask vendor \
+                    to measure mains with the Martindale tester.",
+                "SHUTTING":
+                    "- Error state detected. \"apcupsd\" will initiate a \
+                    system shutdown shortly. If the battery levels are \
+                    not low, restarting the \"apcupsd\" daemon should \
+                    solve the issue. If state remains the same after \
+                    daemon restart, UPS might be faulty.",
+                "ONBATT":
+                    "- Kiosk is running on UPS batteries. There is no power \
+                    coming into the UPS from Mains.",
+                "LOWBATT":
+                    "- Check if BCHARGE is low. If it is 100%, ask vendor to \
+                    replace faulty UPS because the batteries are damaged.",
+                "REPLACEBATT":
+                    "- UPS batteries are exhausted. \
+                    Ask vendor to replace the UPS.",
+                "NOBATT":
+                    "- UPS batteries are dead/not detected. \
+                    UPS should be replaced.",
+                "COMMLOST":
+                    "- UPS is not properly detected or badly configured. \
+                    Re-seat UPS batteries and cable connections. Disconnect \
+                    UPS from Mains and check if maintains Locker on batteries."
+            }.items()
         }
 
         message = str()
 
         if float(result.get("TIMELEFT").split()[0]) >= 300:
-            message += "\
+            message += " ".join("\
                 - Please ask the field engineer to connect the power strip \
                 to the UPS port labeled \"MASTER\". It is currently \
-                connected to the \"Controlled by MASTER\" port."
+                connected to the \"Controlled by MASTER\" port.".split())
 
         for alarm in (
             set(result.get("STATUS").split()).intersection(alarm_msg.keys())
         ):
-            message += "\n" + result[alarm]
+            message += "\n" + alarm_msg[alarm]
 
         if message:
             result["ALARMMSG"] = message.strip()
 
         return result
+
+
+def events():
+
+    result = list()
+
+    keywords = (
+        "battery",
+        "failure",
+        "reached",
+        "running",
+        "shutdown",
+        "startup"
+    )
+
+    for line in read_logs(["/var/log/apcupsd.events*"]):
+        if any(k in line.lower() for k in keywords):
+            splitted = line.strip("\x00").split()
+            try:
+                result.append((
+                    parse_datetime(" ".join(splitted[:3]), f_datetime),
+                    " ".join(splitted[3:])
+                ))
+            except Exception as exception:
+                logger.debug(exception)
+
+    return sorted(result) if result else None
 
 
 if __name__ == "__main__":
