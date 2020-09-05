@@ -179,8 +179,17 @@ def apcaccess():
         }
 
         message = str()
+        timeleft = float(result.get("TIMELEFT").split()[0])
 
-        if float(result.get("TIMELEFT").split()[0]) >= 300:
+        if timeleft <= 10:
+            message += " ".join("\
+                - UPS batteries are incapable of sustaining the Locker ON \
+                during a power outage. KODR will interpret the outage as \
+                Network. It's advisable to replace the UPS. If there are \
+                recurrent FSTs, investigate \"apcupsd.events\" for repeated \
+                power failures.".split())
+
+        elif timeleft >= 300:
             message += " ".join("\
                 - Please ask the field engineer to connect the power strip \
                 to the UPS port labeled \"MASTER\". It is currently \

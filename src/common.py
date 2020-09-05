@@ -170,6 +170,16 @@ def read_logs(log_path, days_ago=None):
     return sorted(result) if result else None
 
 
+def str_cleanup(r_iter, r_string):
+
+    result = r_string
+
+    for i in r_iter:
+        result = str().join(filter(bool, result.split(i)))
+
+    return str(result)
+
+
 def tmp():
     getenv("USER")
     pass
