@@ -58,11 +58,7 @@ def main():
 
     headers = [format_output(text, bold=True) for text in headers]
 
-    if data:
-        print(table(data, headers=headers))
-
-    else:
-        print("- Nothing found.")
+    print(table(data, headers=headers) if data else "- Nothing found.")
 
 
 def logs(log_path, days_ago):

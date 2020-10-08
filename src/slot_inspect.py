@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from common import cmd_exec, format_output, lockers, parse_datetime, table
+from common import (
+    cmd_exec,
+    format_output,
+    lockers,
+    parse_datetime,
+    table,
+)
 
 
 CMD_PATH = "/usr/local/dpcs/lockerController.sh"

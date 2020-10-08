@@ -35,16 +35,13 @@ def main():
     )
     data = events()[-logsize:]
 
-    if len(data):
-        print(table(data, headers=headers))
-    else:
-        print("- Nothing found.")
+    print(table(data, headers=headers) if data else "- Nothing found.")
 
     print("\n")
 
     headers = (
         format_output(text, bold=True)
-        for text in ("Date/time", "BCHARGE", "When")
+        for text in ("Timestamp", "BCHARGE", "When")
     )
     data = list()
     log_path = (path.join(p, "kioskwatcher.log*") for p in (
@@ -65,10 +62,7 @@ def main():
         line = [d, "%s %d%%" % (m, s), parse_datetime(d, humanize=True)]
         data.append([format_output(i, color) for i in line])
 
-    if data:
-        print(table(data, headers=headers))
-    else:
-        print("- Nothing found.")
+    print(table(data, headers=headers) if data else "- Nothing found.")
 
     print("\n")
 
@@ -96,7 +90,7 @@ def main():
         k = format_output(k, "yellow" if k in important else None, True)
         data.append((k, v))
 
-    print(table(data))
+    print(table(data, headers=headers) if data else "- Nothing found.")
 
     if alarm:
         print("\n")

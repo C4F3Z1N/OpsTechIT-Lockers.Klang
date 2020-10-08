@@ -4,13 +4,16 @@
 from contextlib import contextmanager
 from datetime import date, timedelta
 from glob import glob
+from itertools import chain
 from os import chdir, getenv, getcwd, path
 from requests import Session
 from requests.packages.urllib3 import disable_warnings
+from sys import argv, exit
 import logging as _logger
 
 
-_logger.basicConfig(level=_logger.DEBUG)
+# _logger.basicConfig(level=_logger.DEBUG)
+_logger.getLogger().setLevel(getenv("DEBUG_LEVEL", 0))
 logger = _logger
 
 
@@ -85,11 +88,15 @@ def format_output(text, color=None, bold=False):
         "gray": 90
     }
 
+    for c in colors.keys():
+        if c in str(color).lower():
+            color = c
+
     if color not in colors:
         return "\033[%dm%s\033[0m" % (bold, text)
 
     else:
-        return "\033[%d;%dm%s\033[0m" % (bold, colors[color.lower()], text)
+        return "\033[%d;%dm%s\033[0m" % (bold, colors[color], text)
 
 
 def fetch(url, headers=None, warnings=False, verify=False):
@@ -142,17 +149,14 @@ def table(content, headers=()):
     return tabulate(content, headers=headers, tablefmt="plain")
 
 
-def read_logs(log_path, days_ago=None):
-    from gzip import open as gz_open
+def _read_logs(log_path, days_ago=None):
 
     if isinstance(log_path, str):
         raise TypeError("'str' is not accepted.")
     else:
         iter(log_path)
 
-    expanded = set()
-    for g in map(glob, log_path):
-        expanded.update(g)
+    expanded = list(chain.from_iterable(map(glob, log_path)))
 
     if days_ago:
         days_ago *= -1 if days_ago > 0 else 1
@@ -162,12 +166,36 @@ def read_logs(log_path, days_ago=None):
     else:
         log_path = expanded
 
-    result = set()
+    # result = set()
     for i in log_path:
-        file_open = gz_open if i.split('.')[-1].lower() == "gz" else open
-        result.update(file_open(i).readlines())
+        with open_logfile(i) as lf:
+            yield lf.readlines()
+    #         result.update(lf.readlines())
 
-    return sorted(result) if result else None
+    # return sorted(result) if result else None
+
+
+def read_logs(log_path, days_ago=None):
+    return chain.from_iterable(_read_logs(log_path, days_ago))
+
+
+@contextmanager
+def open_logfile(path, function=None):
+
+    if not function:
+        if path.split('.')[-1].lower() == "gz":
+            from gzip import open as gzip_open
+            function = gzip_open
+
+        else:
+            function = open
+
+    try:
+        with function(path) as logfile:
+            yield logfile
+
+    finally:
+        pass
 
 
 def str_cleanup(r_iter, r_string):
@@ -181,5 +209,6 @@ def str_cleanup(r_iter, r_string):
 
 
 def tmp():
-    getenv("USER")
+    logger.debug(argv)
+    exit()
     pass
