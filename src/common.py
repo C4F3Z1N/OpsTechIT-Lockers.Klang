@@ -5,11 +5,12 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 from glob import glob
 from itertools import chain
-from os import chdir, getenv, getcwd, path
-from requests import Session
+from os import chdir, getcwd, getenv, path
+from requests import Session, Timeout
 from requests.packages.urllib3 import disable_warnings
 from sys import argv, exit
 import logging as _logger
+import signal
 
 
 # _logger.basicConfig(level=_logger.DEBUG)
@@ -71,7 +72,8 @@ def lockers():
 
     return {
         locker["lockerConfig"]["lockerId"]: locker
-        for locker in json_load("/kiosk/data/dpcs/lockers.json")
+        # for locker in json_load("/kiosk/data/dpcs/lockers.json")
+        for locker in fetch("http://localhost:7777/v1/lockers").json()
     }
 
 
@@ -143,10 +145,13 @@ def mac_address(ip):
             return str(n.split()[-2]).upper()
 
 
-def table(content, headers=()):
+def table(*args, **kwargs):
     from tabulate import tabulate
 
-    return tabulate(content, headers=headers, tablefmt="plain")
+    if not kwargs.get("tablefmt"):
+        kwargs["tablefmt"] = "plain"
+
+    return tabulate(*args, **kwargs)
 
 
 def _read_logs(log_path, days_ago=None):
@@ -206,6 +211,38 @@ def str_cleanup(r_iter, r_string):
         result = str().join(filter(bool, result.split(i)))
 
     return str(result)
+
+
+def getKioskInfo():
+    return fetch("http://localhost:7777/getKioskInfo").json()
+
+
+def getKioskLayout():
+    return fetch("http://localhost:7777/getKioskLayout").json()
+
+
+@contextmanager
+def timeout(time):
+
+    def raise_timeout(signum, frame):
+        raise Timeout
+
+    # Register a function to raise a TimeoutError on the signal.
+    signal.signal(signal.SIGALRM, raise_timeout)
+    # Schedule the signal to be sent after ``time``.
+    signal.alarm(time)
+
+    try:
+        yield
+
+    except Timeout as exception:
+        logger.debug([type(exception), exception.message, exception])
+        pass
+
+    finally:
+        # Unregister the signal so it won't be triggered
+        # if the timeout is not reached.
+        signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
 def tmp():

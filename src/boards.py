@@ -1,181 +1,241 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#HELP	Checks the expected layout and pings each component (PCBs/SVB).
 
-from json import load as json_load
-from os import environ
-from re import findall as re_findall
+from collections import OrderedDict as dict
+from common import (
+    cmd_exec,
+    format_output,
+    # getenv,
+    getKioskInfo as _getKioskInfo,
+    getKioskLayout as _getKioskLayout,
+    logger,
+    mac_address,
+    table,
+)
 
-ENV = environ.copy()
 
-def run_cmd(command, silent = True, shell = False):
+def main():
+    # log_size = int(getenv("LOG_SIZE", 30))
+    # print(log_size)
 
-	from subprocess import CalledProcessError, check_output
+    type_color = {
+        "OmniKiosk": "silver",
+        "DeliveryKiosk": "yellow"
+    }
 
-	if type(command) is str and not shell:
-		command = command.split()
+    kiosk_color = type_color[_getKioskInfo()["kioskConfig"]["kioskType"]]
 
-	try:
-		output = check_output(command, shell = shell)
-		result = True
+    info = {
+        "generation": generation(),
+        "modules": layout(),
+    }
 
-	except CalledProcessError as exception:
-		output = exception.output
-		result = False
+    print(format_output("[INFO] Expected layout:", "yellow"))
+    print(table((
+        (
+            format_output(key.capitalize(), bold=True),
+            format_output(value, kiosk_color, bold=True)
+        )
+        for key, value in info.items()
+    )))
 
-	return result if silent else output
+    print(str())
 
-def ping(host, size = 4, silent = True):
+    print(format_output("[INFO] Ping results:", "yellow"))
 
-	size = 1 if size < 1 else int(size)
+    if info["generation"] <= 2:
+        print("- Serial boards are unreachable by ping.")
+        return
 
-	return run_cmd("ping -c %d %s" % (size, host), silent = silent)
+    boards = dict(zip(
+        ip_dials('S', 250) + ip_dials(info["modules"]),
+        ["SVB"] + list(info["modules"]),
+    ))
 
-def multi_ping(hosts, size = None, silent = True):
+    data = boards.keys()
+    for key, value in multi_ping(data).items():
+        result = {
+            "type": format_output(boards[key], kiosk_color, bold=True),
+            "ip": key,
+        }
+        color = "red"
 
-	from multiprocessing import Pool
+        if value:
+            color = "green" if not value["loss"] else color
+            result["mac"] = mac_address(key)
+            result["sent/recv"] = format_output("%d/%d" % (
+                value["transmitted"],
+                value["received"],
+            ), color, bold=True)
+        else:
+            result["mac"] = format_output("?????", color, bold=True)
+            result["sent/recv"] = format_output("0/0", color, bold=True)
 
-	pool = Pool(len(hosts))
+        data[data.index(key)] = {
+            format_output(r.upper(), bold=True): result[r]
+            for r in result
+        }
 
-	result = [[h, pool.apply_async(ping, args = (h, size, silent))] for h in hosts]
+    print(table(data, headers="keys"))
 
-	pool.close()
-	pool.join()
 
-	return [[ip, pool.get()] for ip, pool in result]
+def ping(host, size=10, interval=.2, interactive=False):
 
-def get_layout(loaded_json):
+    def parse_output(output):
+        stats = {
+            "transmitted": None,
+            "received": None,
+            "loss": None,
+        }
 
-	if "kioskLayoutArrangement" in loaded_json:
-		return loaded_json["kioskLayoutArrangement"]
+        line = filter(
+            lambda line: all(s in line for s in stats.keys()),
+            output.split("\n")
+        )[-1].split(',')
 
-	else:
-		layout = [None] * len(loaded_json["columns"])
+        for key in stats.keys():
+            # 12.5% packet loss
+            value = filter(lambda x: key in x, line)[-1]
+            # 12.5%
+            value = value.split()[0]
+            # 12.5
+            value = float(value.strip('%')) if '%' in value else int(value)
+            # "loss": 12.5
+            stats[key] = value
 
-		for column in loaded_json["columns"]:
-			layout[column["position"] - 1] = len(column["rows"])
+        return stats
 
-		result = list()
+    result = cmd_exec(
+        "ping -c %d -i %f %s" % (size, interval, host),
+        interactive=interactive
+    )
 
-		for i in range(0, len(layout), 2):
+    return parse_output(result) if not interactive and result else result
 
-			slots = layout[i] + layout[i + 1]
 
-			if slots == 1: component_type = 'F'
-			elif slots == 3: component_type = 'Q'
-			else: component_type = 'A'
+def generation():
 
-			result.append(component_type)
+    options = {
+        "ZHILAI_GEN_4": 4,
+        "ZHILAI_GEN_3": 3,
+        "ZHILAI_GEN_2_5": 2.5,
+        "ZHILAI_GEN_2": 2,
+    }
 
-		starter = loaded_json["starterColumnPosition"]
-		result[(starter / 2 + starter % 2) - 1] = 'S'
+    query = _getKioskLayout()["generation"]
 
-		return ''.join(result)
+    try:
+        return float(options[query])
 
-def get_dials(layout):
+    except Exception as e:
+        logger.debug([type(e), e.message, e])
 
-	left, right = layout.split('S')
+        for key, value in sorted(options.items(), reverse=True):
+            if key in query:
+                return float(value)
 
-	left = range(11, 11 + 2 * len(left), 2)[::-1]
-	right = range(12, 12 + 2 * len(right), 2)
 
-	return left + [10] + right
+def layout():
 
-def get_ips(dials):
+    query = _getKioskLayout()
 
-	command = "ip -4 addr show eth1"
+    try:
+        return query["kioskLayoutArrangement"]
 
-	base = run_cmd(command, silent = False)
+    except Exception as e:
+        logger.debug([type(e), e.message, e])
 
-	base = base.split("inet ")[1].split("/")[0].split('.')[:-1]
+        kiosk = {
+            key: value for key, value in query.items()
+            if key in ("columns", "starterColumnPosition")
+        }
 
-	return ['.'.join(map(str, base + [i])) for i in dials]
+        layout = [
+            len(column["rows"])
+            for column in sorted(
+                kiosk["columns"],
+                key=lambda c: c["position"]
+            )
+        ]
 
-def get_macaddr(host):
+        if generation() == 2:
+            for k, v in enumerate(layout):
+                if v == 1:
+                    layout[k] = 'F'
+                elif v <= 3:
+                    layout[k] = 'Q'
+                else:
+                    layout[k] = 'A'
 
-	command = "arp -a %s" % host
+            layout[kiosk["starterColumnPosition"] - 1] = 'S'
 
-	result = run_cmd(command, silent = False)
+        elif generation() <= 2.5:
+            result = list()
 
-	return result.split("at")[1].split()[0].upper()
+            for k in range(0, len(layout), 2):
+                slots = sum(layout[k:k + 2])
 
-def format_text(text, color = None, bold = False):
+                if slots == 1:
+                    component = 'F'
+                elif slots <= 3:
+                    component = 'Q'
+                else:
+                    component = 'A'
 
-	colors = {
-		"silver": 2,
-		"red": 31,
-		"green": 32,
-		"yellow": 33,
-		"blue": 34,
-		"magenta": 35,
-		"cyan": 36,
-		"gray": 90
-	}
+                result.append(component)
 
-	if not color:
-		return "\033[%dm%s\033[0m" % (bold, text)
+            starter = kiosk["starterColumnPosition"]
+            result[(starter / 2 + starter % 2) - 1] = 'S'
+            layout = result
 
-	else:
-		return "\033[%d;%dm%s\033[0m" % (bold, colors[color.lower()], text)
+        else:
+            raise NotImplementedError
 
-def process_ping(keywords, output):
+        return str().join(layout)
 
-	result = dict()
 
-	for k in keywords:
-		for o in output:
-			if k in o:
-				result[k] = re_findall(r'\d+', o)
-				if len(result[k]) > 1: raise ValueError
-				else: result[k] = int(result[k][-1])
+def ip_dials(layout, starter_ip=10):
 
-	return result
+    def sided_range(odd, n):
+        s = starter_ip + int(not odd)
+        n = 2 * n + s
+        r = filter(lambda x: x % 2 == odd, range(s, n))
+        return r[::-1] if odd else r
+
+    # reversed_ip = "1.1.861.291"
+    reversed_ip = cmd_exec("hostname -I", interactive=False).split()[-1][::-1]
+
+    # base = "192.168.1."
+    base = reversed_ip[reversed_ip.index('.'):][::-1]
+
+    left, right = map(len, layout.split('S'))
+
+    left = sided_range(True, left)
+    right = sided_range(False, right)
+
+    return [base + str(d) for d in left + [starter_ip] + right]
+
+
+def multi_ping(hosts, size=10, interval=.2, interactive=False):
+
+    from multiprocessing import Pool, cpu_count
+
+    pool = Pool(cpu_count())
+
+    execution = {
+        h: pool.apply_async(ping, args=(h, size, interval, interactive))
+        for h in hosts
+    }
+
+    pool.close()
+    pool.join()
+
+    return {
+        key: value.get()
+        for key, value in execution.items()
+    }
+
 
 if __name__ == "__main__":
-
-	size = (int(ENV["LOG_SIZE"]) / 3) if "LOG_SIZE" in ENV else 10
-
-	try:
-		with open("/var/tmp/kioskConfig.json", 'r') as json_file:
-			kiosk_color = "silver" if json_load(json_file)["kioskType"] == "OmniKiosk" else "yellow"
-
-		with open("/kiosk/data/dpcs/kioskPhysicalLayout.json", 'r') as json_file:
-			physicallayout_json = json_load(json_file)
-
-		layout = get_layout(physicallayout_json)
-		dials = get_dials(layout)
-
-	except IOError as exception:
-		layout = "Unknown"
-		dials = range(10, 51)
-		kiosk_color = "red"
-		print "\"%s\" not found. IP range set from %d to %d.\n" % (exception.filename, dials[0], dials[-1])
-
-	print format_text("EXPECTED LAYOUT:", bold = True) + '\n- ' + format_text(layout, kiosk_color, bold = True)
-
-	print format_text("\nTYPE\t\tIP\t\tMAC\t\tRECV/SENT (PACKETS)", bold = True)
-
-	try:
-		for ip, result in multi_ping(get_ips([250] + dials), size, silent = False):
-
-			mac = get_macaddr(ip)
-			component = int(ip.split('.')[-1])
-			result = process_ping(["transmitted", "received", "loss"], result.split("statistics")[-1].split(','))
-
-			if component in dials and layout != "Unknown":
-				component = format_text(layout[dials.index(component)], kiosk_color, bold = True)
-
-			elif component == 250: component = "SVB"
-			else: component = "???"
-
-			if not result["loss"]: result_color = "green"
-			elif result["loss"] >= 25: result_color = "red"
-			else: result_color = "yellow"
-
-			result = format_text("%d/%d" % (result["received"], result["transmitted"]), result_color, bold = True)
-
-			print "%s\t%s\t%s\t%s" % (component, ip, mac if len(mac) == 17 else "\t???\t", result)
-
-	except KeyboardInterrupt:
-		pass
+    main()
