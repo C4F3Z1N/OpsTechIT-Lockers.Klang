@@ -68,26 +68,19 @@ def json_load(path):
         return load(file)
 
 
-def lockers():
-
-    return {
-        locker["lockerConfig"]["lockerId"]: locker
-        # for locker in json_load("/kiosk/data/dpcs/lockers.json")
-        for locker in fetch("http://localhost:7777/v1/lockers").json()
-    }
-
-
 def format_output(text, color=None, bold=False):
 
+    gray = 2
     colors = {
-        "silver": 2,
         "red": 31,
         "green": 32,
         "yellow": 33,
         "blue": 34,
         "magenta": 35,
         "cyan": 36,
-        "gray": 90
+        "gray": gray,
+        "silver": gray,
+        "beige": gray,
     }
 
     for c in colors.keys():
@@ -213,12 +206,36 @@ def str_cleanup(r_iter, r_string):
     return str(result)
 
 
+def api_request(call):
+
+    if "Kiosk" in call.__name__:
+        path = call.__name__
+    else:
+        path = "v1/%s/" % call.__name__
+
+    def wrapper():
+        return fetch("http://localhost:7777/%s" % path).json()
+    return wrapper
+
+
+@api_request
 def getKioskInfo():
-    return fetch("http://localhost:7777/getKioskInfo").json()
+    pass
 
 
+@api_request
 def getKioskLayout():
-    return fetch("http://localhost:7777/getKioskLayout").json()
+    pass
+
+
+@api_request
+def lockers():
+    pass
+
+
+@api_request
+def reservations():
+    pass
 
 
 @contextmanager

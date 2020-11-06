@@ -19,16 +19,21 @@ def main():
     # log_size = int(getenv("LOG_SIZE", 30))
     # print(log_size)
 
-    type_color = {
-        "OmniKiosk": "silver",
-        "DeliveryKiosk": "yellow"
-    }
+    kiosk_config = _getKioskInfo()["kioskConfig"]
 
-    kiosk_color = type_color[_getKioskInfo()["kioskConfig"]["kioskType"]]
+    if "kioskColor" in kiosk_config:
+        kiosk_color = kiosk_config["kioskColor"].lower()
+
+    else:
+        kiosk_color = {
+            "OmniKiosk": "silver",
+            "DeliveryKiosk": "yellow"
+        }[kiosk_config["kioskType"]]
 
     info = {
         "generation": generation(),
         "modules": layout(),
+        "color": kiosk_color,
     }
 
     print(format_output("[INFO] Expected layout:", "yellow"))
@@ -40,7 +45,7 @@ def main():
         for key, value in info.items()
     )))
 
-    print(str())
+    print   # simple line break
 
     print(format_output("[INFO] Ping results:", "yellow"))
 

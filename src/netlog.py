@@ -28,15 +28,17 @@ def main():
 
     print(format_output("[INFO] Connection details:", "yellow"))
     data = {"modem": mac_address(route_ip or "192.168.15.1")}
+
     try:
         data.update(connection_info())
+
     except Exception as exception:
         logger.debug(exception)
 
     data = [(format_output(k, bold=True), data[k]) for k in data]
     print(table(sorted(data)))
 
-    print("\n")
+    print
 
     headers = ["Date/time", "Status", "When"]
     data = list()

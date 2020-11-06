@@ -1,31 +1,99 @@
 #!/bin/sh -e
 
-URL_INSTALLER="https://opstechit-fr.s3.amazonaws.com/klang/klanginst"
-URL_PACKED="https://opstechit-fr.s3.amazonaws.com/klang/install.zip"
+# cd $(mktemp -d --suffix="-klanginst")
 
-echo "- Downloading Klang!..."
-cd $(mktemp -d --suffix=".klanginst")
-mkdir -p ${HOME}/bin
-wget -qP . ${URL_PACKED}
-unzip -oq ./install.zip -d ${HOME}/bin
-chmod a+x ${HOME}/bin/*
+URL_REPO="https://github.com/C4F3Z1N/OpsTechIT-Lockers.Klang"
+URL_INSTALLER="${URL_REPO}/raw/refactoring/klanginst"
+URL_PACKED="${URL_REPO}/archive/refactoring.zip"
+URL_VENV="https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz"
 
-sed -i "s%^.*klang.*%%g" ${HOME}/.bashrc
 
-echo "wget -qO - \"${URL_INSTALLER}\" | \${SHELL}" >> ${HOME}/.bashrc
+# colored_output() {
+# 	local GREEN=92
+# 	local MAGENTA=95
+# 	local RED=91
+# 	local YELLOW=93
+# 	local NONE=0
 
-echo "- Klang! successfully installed and it is ready to use!"
-echo "- Type klang to see the list of commands" | grep --color "klang\|"
+# 	local TEXT="${@}"
 
-# WORKDIR="/opt/klang"
+# 	# case $()
 
-# sudo mkdir -pv ${WORKDIR}
-# sudo chown -Rv ${USER} ${WORKDIR}
+# 	# echo -e ""
+# }
 
-# VENV=$(mktemp -u)
-# PYVER=$(python -c "from sys import version_info; print('.'.join(map(str, version_info[0:2])))")
-# wget -O ${VENV} "https://bootstrap.pypa.io/virtualenv/${PYVER}/virtualenv.pyz"
 
-# python ${VENV} ${WORKDIR}
-# . ${WORKDIR}/bin/activate
-# pip install -r requirements.txt
+usage() {
+	echo "Usage: "
+	echo "wget -qO - \"${URL_INSTALLER}\" | \${SHELL}"
+}
+
+
+no_sudo() {
+	if [ $(whoami) == "root" ]; then
+		echo "[ERROR] Please DO NOT run this script as root/su/sudo." 1>&2
+		exit 1
+	fi
+}
+
+
+mkenvdir() {
+	local DIR="$(mktemp -u)-pyenv"
+	local VENV="$(mktemp -u)"
+
+	download ${URL_VENV} ${VENV}
+
+	python ${VENV} -q ${DIR}
+	echo ${DIR}
+}
+
+
+download() {
+	local SOURCE="${1}"
+	local DEST="${2}"
+
+	# echo "[INFO] Downloading:"
+	# echo ${SOURCE}
+	curl -Lk# ${SOURCE} -o ${DEST}
+}
+
+extract() {
+	local SOURCE="${1}"
+	local DEST="${2}"
+	local TMPDIR="$(mktemp -d)"
+
+	TOPLEVEL=$(
+		unzip -l ${SOURCE} \
+			| awk '{print $4}' \
+			| grep -o ".*/" \
+			| sort -u \
+			| head -n 1 \
+			| xargs basename \
+	)
+
+	ln -fsv ${DEST} "${TMPDIR}/${TOPLEVEL}"
+	unzip -o ${SOURCE} -d ${TMPDIR}
+	rm -frv ${TMPDIR}
+}
+
+
+fix_dependencies() {
+	echo "[INFO] Checking dependencies:"
+	pip install \
+		--no-python-version-warning \
+		-r requirements.txt \
+		| grep -vi "satisfied" \
+		|| echo "- Up to date."
+}
+
+
+main() {
+	cd "$(mkenvdir)"
+	PACKED="$(mktemp -u)"
+	download ${URL_PACKED} ${PACKED}
+	extract ${PACKED} .
+	source activate
+	fix_dependencies
+}
+
+main

@@ -36,7 +36,10 @@ def main():
 
 def controller(operation, slots):
 
-    kiosk = lockers()
+    kiosk = {
+        locker["lockerConfig"]["lockerId"]: locker
+        for locker in lockers()
+    }
 
     if not operation or "sens" in str(operation).lower():
         operation = "-s"
@@ -69,7 +72,7 @@ def controller(operation, slots):
     print(format_output("[INFO] From the local database:", "yellow"))
     slot_print(slots)
 
-    print("\n")
+    print
 
     print(format_output("[INFO] From DPCS service:", "yellow"))
 
