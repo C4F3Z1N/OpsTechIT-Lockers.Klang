@@ -92,7 +92,9 @@ main() {
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
 	extract ${PACKED} .
-	source activate
+	pwd
+	ls -la
+	source ./activate
 	fix_dependencies
 }
 
