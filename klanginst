@@ -82,8 +82,9 @@ fix_dependencies() {
 	pip install \
 		--no-python-version-warning \
 		-r requirements.txt \
-		| grep -vi "satisfied" \
-		|| echo "- Up to date."
+		# | grep -vi "satisfied" \
+		# || echo "- Up to date."
+		| grep -vi "satisfied"
 }
 
 
@@ -92,10 +93,10 @@ main() {
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
-	extract ${PACKED} .
+	extract ${PACKED} ${PWD}
 	pwd
 	ls -la
-	source ./activate
+	source ${PWD}/activate
 	fix_dependencies
 }
 
