@@ -73,7 +73,7 @@ extract() {
 
 	ln -fsv ${DEST} "${TMPDIR}/${TOPLEVEL}"
 	unzip -o ${SOURCE} -d ${TMPDIR}
-	rm -frv ${TMPDIR}
+	# rm -frv ${TMPDIR}
 }
 
 
