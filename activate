@@ -83,6 +83,6 @@ if [ -n "${BASH-}" ] || [ -n "${ZSH_VERSION-}" ] ; then
     hash -r 2>/dev/null
 fi
 
-for EACH in $(ls -1 ${PWD}/src/*.py | grep -v -E "_|common"); do
-	echo "${EACH}"
+for EACH in $(find "${PWD}/src" -name "*.py" | grep -v -E "_|common"); do
+	alias "$(basename ${EACH%.*})"="$(which python) ${EACH}"
 done
