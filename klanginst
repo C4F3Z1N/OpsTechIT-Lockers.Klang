@@ -6,19 +6,32 @@ URL_PACKED="${URL_REPO}/archive/refactoring.zip"
 URL_VENV="https://bootstrap.pypa.io/virtualenv/2.7/virtualenv.pyz"
 
 
-# colored_output() {
-# 	local GREEN=92
-# 	local MAGENTA=95
-# 	local RED=91
-# 	local YELLOW=93
-# 	local NONE=0
+colored_output() {
+	local GREEN=92
+	local MAGENTA=95
+	local RED=91
+	local YELLOW=93
+	local NONE=0
+	local TEXT="${@}"
+	local COLOR
 
-# 	local TEXT="${@}"
+	case $(echo ${TEXT} | grep -o "\[.*\]") in
+		*"ERROR"* | *"error"*)
+			COLOR=${RED}
+			;;
+		*"INFO"* | *"info"*)
+			COLOR=${YELLOW}
+			;;
+		*"WARN"* | *"warn"*)
+			COLOR=${MAGENTA}
+			;;
+		*"DONE"* | *"done"*)
+			COLOR=${GREEN}
+			;;
+	esac
 
-# 	# case $()
-
-# 	# echo -e ""
-# }
+	echo -e "\033[${COLOR}m${TEXT}\033[0m"
+}
 
 
 usage() {
@@ -52,7 +65,8 @@ download() {
 
 	# echo "[INFO] Downloading:"
 	# echo ${SOURCE}
-	curl -Lk# ${SOURCE} -o ${DEST}
+	# curl -Lk# ${SOURCE} -o ${DEST}
+	wget ${SOURCE} -qO ${DEST}
 }
 
 extract() {
@@ -69,42 +83,43 @@ extract() {
 			| xargs basename \
 	)
 
-	ln -fsv ${DEST} "${TMPDIR}/${TOPLEVEL}"
-	unzip -o ${SOURCE} -d ${TMPDIR}
-	# rm -frv ${TMPDIR}
+	ln -fs ${DEST} "${TMPDIR}/${TOPLEVEL}"
+	unzip -oq ${SOURCE} -d ${TMPDIR}
 }
 
 
 fix_dependencies() {
-	echo "[INFO] Checking dependencies:"
 	pip install \
 		--no-python-version-warning \
-		-r requirements.txt \
-		| grep -vi "satisfied"
+		-qr requirements.txt
 }
 
 
 deploy() {
-	mkdir -pv ${HOME}/bin
+	mkdir -p ${HOME}/bin
 
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
 		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
-		chmod -v a+x ${EACH}
-		ln -fsv ${EACH} "${HOME}/bin/$(basename ${EACH%.*})"
+		chmod a+x ${EACH}
+		ln -fs ${EACH} "${HOME}/bin/$(basename ${EACH%.*})"
 	done
 }
 
 
 main() {
 	# set -x
+	colored_output "[INFO] Downloading beta-klang!..."
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
 	extract ${PACKED} ${PWD}
 	source bin/activate
-	fix_dependencies &> /dev/null &
+
+	colored_output "[INFO] Checking dependencies..."
+	fix_dependencies
 	deploy
-	wait
+
+	colored_output "[PASS] Installation completed!"
 }
 
 main
