@@ -64,7 +64,7 @@ def main():
 
     print(table(data, headers=headers) if data else "- Nothing found.")
 
-    print("\n")
+    print
 
     print(format_output("[INFO] apcaccess:", "yellow"))
 
@@ -120,7 +120,9 @@ def logs(log_path, days_ago):
                 r[2] = u"\u2191" if r[1] > filtered[-1][1] else u"\u2193"
                 filtered.append(r)
 
-        return filtered
+        result = filtered
+
+    return result
 
 
 def apcaccess():
@@ -224,7 +226,7 @@ def events():
             except Exception as exception:
                 logger.debug(exception)
 
-    return sorted(result) if result else None
+    return sorted(result) if result else result
 
 
 if __name__ == "__main__":
