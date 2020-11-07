@@ -91,7 +91,7 @@ deploy() {
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
 		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
 		chmod -v a+x ${EACH}
-		ln -fsv ${EACH} "~/bin/$(basename ${EACH%.*})"
+		ln -fsv ${EACH} "${HOME}/bin/$(basename ${EACH%.*})"
 	done
 }
 
