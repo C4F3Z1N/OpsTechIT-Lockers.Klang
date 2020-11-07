@@ -1,7 +1,5 @@
 #!/bin/sh -e
 
-# cd $(mktemp -d --suffix="-klanginst")
-
 URL_REPO="https://github.com/C4F3Z1N/OpsTechIT-Lockers.Klang"
 URL_INSTALLER="${URL_REPO}/raw/refactoring/klanginst"
 URL_PACKED="${URL_REPO}/archive/refactoring.zip"
@@ -89,7 +87,6 @@ fix_dependencies() {
 
 
 main() {
-	set -x
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
@@ -99,4 +96,4 @@ main() {
 main
 source ${PWD}/activate
 fix_dependencies
-# exec ${SHELL}
+exec ${SHELL}
