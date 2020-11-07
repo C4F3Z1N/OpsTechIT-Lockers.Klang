@@ -71,6 +71,8 @@ extract() {
 			| xargs basename \
 	)
 
+	echo "DEST: ${DEST}"
+
 	ln -fsv ${DEST} "${TMPDIR}/${TOPLEVEL}"
 	unzip -o ${SOURCE} -d ${TMPDIR}
 	# rm -frv ${TMPDIR}
@@ -82,8 +84,6 @@ fix_dependencies() {
 	pip install \
 		--no-python-version-warning \
 		-r requirements.txt \
-		# | grep -vi "satisfied" \
-		# || echo "- Up to date."
 		| grep -vi "satisfied"
 }
 
