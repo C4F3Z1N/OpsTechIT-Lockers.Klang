@@ -85,6 +85,9 @@ fix_dependencies() {
 
 
 deploy() {
+	sudo mkdir -pv ~/bin
+	sudo chown -Rv ${USER} ~/bin
+
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
 		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
 		chmod -v a+x ${EACH}
