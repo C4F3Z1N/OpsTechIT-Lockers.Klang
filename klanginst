@@ -85,8 +85,7 @@ fix_dependencies() {
 
 
 deploy() {
-	sudo mkdir -pv ~/bin
-	sudo chown -Rv ${USER} ~/bin
+	mkdir -pv ${HOME}/bin
 
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
 		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
@@ -97,14 +96,15 @@ deploy() {
 
 
 main() {
-	set -x
+	# set -x
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
 	extract ${PACKED} ${PWD}
 	source bin/activate
-	fix_dependencies
+	fix_dependencies &> /dev/null &
 	deploy
+	wait
 }
 
 main
