@@ -93,7 +93,11 @@ main() {
 	extract ${PACKED} ${PWD}
 }
 
+set -x
 main
 source ${PWD}/activate
 fix_dependencies
+
+cp -fv /etc/skel/.bashrc ~
+echo "source > ${PWD}/activate" >> ~/.bashrc
 exec ${SHELL}
