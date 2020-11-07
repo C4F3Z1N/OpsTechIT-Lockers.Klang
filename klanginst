@@ -99,4 +99,4 @@ main() {
 main
 source ${PWD}/activate
 fix_dependencies
-exec ${SHELL}
+# exec ${SHELL}

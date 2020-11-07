@@ -86,3 +86,5 @@ fi
 for EACH in $(find "${PWD}/src" -name "*.py" | grep -v -E "_|common"); do
 	alias "$(basename ${EACH%.*})"="$(which python) ${EACH}"
 done
+
+exec ${SHELL}
