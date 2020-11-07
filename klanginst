@@ -69,8 +69,6 @@ extract() {
 			| xargs basename \
 	)
 
-	echo "DEST: ${DEST}"
-
 	ln -fsv ${DEST} "${TMPDIR}/${TOPLEVEL}"
 	unzip -o ${SOURCE} -d ${TMPDIR}
 	# rm -frv ${TMPDIR}
@@ -99,5 +97,5 @@ source ${PWD}/activate
 fix_dependencies
 
 cp -fv /etc/skel/.bashrc ~
-echo "source > ${PWD}/activate" >> ~/.bashrc
+echo "source ${PWD}/activate" >> ~/.bashrc
 exec ${SHELL}
