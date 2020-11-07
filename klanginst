@@ -108,6 +108,7 @@ deploy() {
 
 main() {
 	# set -x
+	no_sudo
 	colored_output "[INFO] Downloading beta-klang!..."
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
