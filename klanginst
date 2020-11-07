@@ -84,18 +84,24 @@ fix_dependencies() {
 }
 
 
+deploy() {
+	for EACH in $(find "${PWD}/src" -name "*.py"); do
+		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
+		chmod -v a+x ${EACH}
+		ln -fsv ${EACH} "~/bin/$(basename ${EACH%.*})"
+	done
+}
+
+
 main() {
+	set -x
 	cd "$(mkenvdir)"
 	PACKED="$(mktemp -u)"
 	download ${URL_PACKED} ${PACKED}
 	extract ${PACKED} ${PWD}
+	source bin/activate
+	fix_dependencies
+	deploy
 }
 
-set -x
 main
-source ${PWD}/activate
-fix_dependencies
-
-cp -fv /etc/skel/.bashrc ~
-echo "source ${PWD}/activate" >> ~/.bashrc
-exec ${SHELL}
