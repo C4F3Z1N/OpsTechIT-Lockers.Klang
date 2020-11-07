@@ -175,7 +175,7 @@ def layout():
 
             layout[kiosk["starterColumnPosition"] - 1] = 'S'
 
-        elif generation() <= 2.5:
+        elif generation() >= 2.5:
             result = list()
 
             for k in range(0, len(layout), 2):

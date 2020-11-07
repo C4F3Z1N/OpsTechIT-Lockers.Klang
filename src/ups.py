@@ -31,7 +31,7 @@ def main():
 
     headers = (
         format_output(text, bold=True)
-        for text in ("Date/time", "Message")
+        for text in ("Timestamp", "Message")
     )
     data = events()[-logsize:]
 

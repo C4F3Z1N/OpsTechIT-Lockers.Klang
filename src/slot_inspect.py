@@ -10,9 +10,6 @@ from common import (
 )
 
 
-CMD_PATH = "/usr/local/dpcs/lockerController.sh"
-
-
 def main():
     from argparse import ArgumentParser
 
@@ -40,6 +37,8 @@ def controller(operation, slots):
         locker["lockerConfig"]["lockerId"]: locker
         for locker in lockers()
     }
+
+    print(kiosk)
 
     if not operation or "sens" in str(operation).lower():
         operation = "-s"
@@ -78,7 +77,7 @@ def controller(operation, slots):
 
     return cmd_exec(
         "sudo %s %s -d %s" % (
-            CMD_PATH,
+            "/usr/local/dpcs/lockerController.sh",
             operation,
             " ".join(map(str, slots))))
 

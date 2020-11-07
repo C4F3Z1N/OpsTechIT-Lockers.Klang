@@ -40,7 +40,6 @@ def main():
 
     print
 
-    headers = ["Date/time", "Status", "When"]
     data = list()
     log_path = (path.join(p, "traceroute.dat*") for p in (
         "/tmp/kiosklogpusher/backup",
@@ -58,7 +57,10 @@ def main():
         color = "green" if s else "red"
         data.append([format_output(i, color) for i in line])
 
-    headers = [format_output(text, bold=True) for text in headers]
+    headers = (
+        format_output(w, bold=True)
+        for w in ("Timestamp", "Status", "When")
+    )
 
     print(table(data, headers=headers) if data else "- Nothing found.")
 
