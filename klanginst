@@ -99,8 +99,8 @@ deploy() {
 	local INSTALL_DIR="${HOME}/bin"
 	mkdir -p ${INSTALL_DIR}
 
-	for EACH in $(find "${PWD}/install" -type file); do
-		ln -fsv ${EACH} ${INSTALL_DIR}
+	for EACH in $(find "${PWD}/install" -type f); do
+		ln -fsv ${EACH} "${INSTALL_DIR}/$(basename ${EACH})"
 	done
 
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
