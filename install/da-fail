@@ -1,43 +1,168 @@
 #!/bin/bash
-
-#HELP	<RID/OID> - checks if pckg has been delivered and opens slots of the last delivery batch one after another
-
+#HELP   <TrackingID> - opens slots of the last delivery batch
+TRID=$1
 proceed()
 {
-	read -p "Proceed with the next slot?(y/n)" YN
-		
-	case "$YN" in
-		Y|y) echo "Moving to the next slot";;
-		N|n) echo "Ending the script"; exit;;
-		*) echo "Invalid option..."; proceed;;
-	esac
+    read -p "Proceed with the next slot?(y/n)" YN
+    case "$YN" in
+        Y|y) echo "Moving to the next slot";;
+        N|n) echo "Ending the script"; exit;;
+        *) echo "Invalid option..."; proceed;;
+    esac
 }
-
-ID=$(grep -w $1 /usr/local/dpcs/DeliveryPointClientService.log | grep "CUSTOMER_PICKUP" | grep -v "ItemConsolidated" | tail -n 1 | sed 's/ /\n/g' | grep "reservationId=" | tr -d "[reservationId=,"; zgrep -w $1 `ls -r /tmp/kiosklogpusher/backup/DeliveryPointClientService* | head -n 2` | grep "CUSTOMER_PICKUP" | grep -v "ItemConsolidated" | tail -n 1 | sed 's/ /\n/g' | grep "reservationId=" | tr -d "[reservationId=,")
-
-if [ -z "$ID" ]
-then
-	echo "Package $1 is invalid or not ordered for this locker or it might has been delivered more than 120 minutes ago."
-else
-	LID=$(grep -A 100 -i "Authenticating carrier credentials:"  /usr/local/dpcs/DeliveryPointClientService.log | grep "LID(.*Opening" | cut -d " " -f 10 | tr -d "LID()"; zgrep -A 100 -i "Authenticating carrier credentials:" `ls -r /tmp/kiosklogpusher/backup/DeliveryPointClientService* | head -n 8` | grep "LID(.*Opening" | cut -d " " -f 10 | tr -d "LID()")
-	LIDS+=("$LID")
-fi
-
+deliveries (){
+    ID_NEW=($(grep -i "$TRID" /usr/local/dpcs/Delivery* | grep "deliveries=\[" | tail -n 1 | sed 's/\[\|\]/\n/g' | grep -A 1 "deliveries" | tail -n 1 | tr -d ","))
+    ID_OLD=($(zgrep -i "$TRID" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 2) | grep "deliveries=\[" | tail -n 1 | sed 's/\[\|\]/\n/g' | grep -A 1 "deliveries" | tail -n 1 | tr -d ","))
+    IDs=("${ID_NEW[*]}" "${ID_OLD[*]}")
+    if [[ "${IDs[*]}" =~ $TRID ]]
+    then
+        NEW_SLOT=$(grep "LID(" /tmp/kiosklogpusher/backup/Del* | grep -i "Found and assigned locker for reservation" | sed 's/ /\n/g' | grep "LID(" | tr -d "LID()")
+        NEW_SLOT_REVERSE=($(echo "$NEW_SLOT[*]" | sed 's/ /\n/g' | tac | tr "\n" " "))
+        OLD_SLOT=$(zgrep "LID(" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 2) | grep -i "Found and assigned locker for reservation" | sed 's/ /\n/g' | grep "LID(" | tr -d "LID()")
+        OLD_SLOT_REVERSE=($(echo "$OLD_SLOT[*]" | sed 's/ /\n/g' | tac | tr "\n" " "))
+        SLOTS=("${NEW_SLOT_REVERSE[*]}" "${OLD_SLOT_REVERSE[*]}")
+        PASS=$(date +%s | tail -c 7)
+        echo "You are about to open a series of slots."
+        read -p "Are you sure you want to continue?(y/n)" YN
+        case "$YN" in
+            Y|y) read -p "To proceed re-enter the security string $PASS: " TYPE_PASS;;
+            *) echo "Terminating the script..."; exit;;
+        esac
+        if [[ "$PASS" == "$TYPE_PASS" ]]
+        then
+            echo "Security string successfully verified."
+            for SLOT in ${SLOTS[*]}
+            do
+                if [ "$SLOT" -gt "-1" ]
+                then
+                    echo "Opening slot number $SLOT"
+                    slot-open "$SLOT"
+                    while slot-sensor "$SLOT" | grep "Open: true"
+                    do
+                        echo "Close slot $SLOT, please"
+                    done
+                    proceed
+                fi
+            done
+        else
+            echo "Security string verification failed."
+            echo "Terminating the script..."
+            exit
+        fi
+    else
+        echo "TrackingID $TRID was not assigned to this locker or was delivered more than 180 mins ago."
+    fi
+}
+reservations(){
+    ID_NEW=($(zgrep -i "$TRID" /usr/local/dpcs/Del* | grep "deliveries=\[" | tail -n 1 | sed 's/\[\|\]/\n/g' | grep -A 1 "deliveries" | tail -n 1 | tr -d ","))
+    ID_OLD=($(zgrep -i "$TRID" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 96) | grep "deliveries=\[" | tail -n 1 | sed 's/\[\|\]/\n/g' | grep -A 1 "deliveries" | tail -n 1 | tr -d ","))
+    IDs=("${ID_NEW[*]}" "${ID_OLD[*]}")
+    if [[ "${IDs[*]}" =~ $TRID ]]
+    then
+        NEW_RESERVATION=($(grep "purpose=CUSTOMER_PICKUP, state=PACKAGE_IN_LOCKER" /usr/local/dpcs/Del* | grep -v "lockerId=-1" | awk -F'lockerId=' '{print$2}' | cut -d "]" -f 1 | sort -h | uniq))
+        OLD_RESERVATION=($(zgrep "purpose=CUSTOMER_PICKUP, state=PACKAGE_IN_LOCKER" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 96) | grep -v "lockerId=-1" | awk -F'lockerId=' '{print$2}' | cut -d "]" -f 1 | sort -h | uniq))
+        RESERVATIONS_LIST=("${NEW_RESERVATION[*]}" "${OLD_RESERVATION[*]}")
+        RESERVATIONS=""
+        NEW_SLOT=""
+        OLD_SLOT=""
+        FULL_SLOTS=($(grep -A 9 "empty\": false" /kiosk/data/dpcs/lockers.json | grep "lockerId" | grep -Eo "[0-9]+"))
+        echo "Checking active reservations. Just a minute..."
+        for SLOT_NR in ${RESERVATIONS_LIST[*]}
+        do
+            LIST=$(ls /tmp/kiosklogpusher/backup/Del* | tail -n 96)
+            NEW_SLOT+="grep \"lockerId=$SLOT_NR\]\" /usr/local/dpcs/Delivery* | tail -n 1 | grep \"purpose=CUSTOMER_PICKUP, state=PACKAGE_IN_LOCKER\" | sed 's/,/\n/g' | grep \"lockerId=\" | grep -Eo \"[0-9]+\" & "
+            OLD_SLOT+="zgrep \"lockerId=$SLOT_NR\]\" $LIST | tail -n 1 | grep \"purpose=CUSTOMER_PICKUP, state=PACKAGE_IN_LOCKER\" | sed 's/,/\n/g' | grep \"lockerId=\" | grep -Eo \"[0-9]+\" & "
+        done
+        NEW_SLOT+="echo; wait"
+        OLD_SLOT+="echo; wait"
+        RESERVATIONS_NEW=($(echo $NEW_SLOT | ${SHELL}))
+        RESERVATIONS_OLD=($(echo $OLD_SLOT | ${SHELL}))
+        RESERVATIONS=("${RESERVATIONS_NEW[*]}" "${RESERVATIONS_OLD[*]}")
+        SORTED=($(for i in ${RESERVATIONS[*]}; do echo $i; done | sort -h | uniq))
+        for l in ${FULL_SLOTS[*]}
+        do
+            if [[ ! "${SORTED[*]}" =~ $l ]]
+            then
+                FULL+=("$l")
+            fi
+        done
+        echo "Recent reservations list: ${RESERVATIONS_LIST[*]}"
+        echo "Slots occupied with active reservations: ${SORTED[*]}"
+        echo "Occupied slots: ${FULL_SLOTS[*]}"
+        echo "Occupied slots with no active reservation: ${FULL[*]}"
+        if [ -n "${FULL[*]}" ]
+        then
+            PASS=$(date +%s | tail -c 7)
+            echo "You are about to open a series of slots."
+            read -p "Are you sure you want to continue?(y/n)" YN
+            case "$YN" in
+                Y|y) read -p "To proceed re-enter the security string $PASS: " TYPE_PASS;;
+                *) echo "Terminating the script..."; exit;;
+            esac
+            if [[ "$PASS" == "$TYPE_PASS" ]]
+            then
+                echo "Security string successfully verified."
+                for SLOT in ${FULL[*]}
+                do
+                    echo "Opening slot number $SLOT"
+                    slot-open "$SLOT"
+                    while slot-sensor "$SLOT" | grep "Open: true"
+                    do
+                        echo "Close slot $SLOT, please"
+                    done
+                    proceed
+                done
+            else
+                echo "Security string verification failed."
+            fi
+        else
+            echo "No occupied slot with no active reservation found."
+        fi
+    else
+        echo "TrackingID $TRID was not assigned to this locker or was delivered more than 4 days ago."
+    fi
+}
 cd /usr/local/dpcs
-
-for SLOT in ${LIDS[*]}
-
-do
-	echo "Opening slot number $SLOT"
-
-	sudo ./lockerController.sh -o -d $SLOT
-		
-	while sudo ./lockerController.sh -s -d $SLOT | grep "Open: true"
-	do
-		echo "Close slot $SLOT, please"
-	done
-		
-	proceed
-done
-
+echo "Da-fail tool"
+if [ -z "$TRID" ]
+then
+    echo "Please, specify the TrackingID"
+    echo "Ending the script"
+    exit
+else
+    RID=$(grep -i "$TRID" /usr/local/dpcs/Delivery* | head -n 1 | sed 's/,/\n/g' | grep "reservationId=" | awk -F "reservationId=" '{print$2}')
+    SLOT=$(grep -i "LID(" /usr/local/dpcs/Delivery* | grep -i "Found and assigned locker for reservation" | grep "$RID" | sed 's/ /\n/g' | grep "LID" | tr -d "LID()")
+    if [ -z "$SLOT" ]
+    then
+        RID=$(zgrep -i "$TRID" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 2) | head -n 1 | sed 's/,/\n/g' | grep "reservationId=" | awk -F "reservationId=" '{print$2}')
+        SLOT=$(zgrep -i "LID(" $(ls /tmp/kiosklogpusher/backup/Del* | tail -n 2) | grep -i "Found and assigned locker for reservation" | grep "$RID" | sed 's/ /\n/g' | grep "LID" | tr -d "LID()")
+    fi
+    if [ -n "$SLOT" ]
+    then
+        echo "Reservation number $RID found associated with TrackingID $TRID - slot $SLOT. Checking the sensors."
+        slot-sensor "$SLOT"
+        read -p "Do you want to open the slot?(Y/N)" YN
+        case "$YN" in
+            Y|y) echo "Opening slot number $SLOT"
+                slot-open "$SLOT"
+                while slot-sensor "$SLOT" | grep "Open: true"
+                do
+                    echo "Close slot $SLOT, please"
+                done
+                ;;
+            N|n) echo "Proceeding...";;
+            *) echo "Invalid option. Proceeding...";;
+        esac
+    else
+        echo "No slot associated with TrackingID $TRID. Proceeding..."
+    fi
+    echo "1 - check the DA deliveries for the last 180 minutes."
+    echo "2 - check occupied slots that have no active reservation assigned."
+    read -p "Please, choose the procedure: " ACTION
+    case "$ACTION" in
+        1) echo "Checking the DA deliveries for the last 180 minutes."; deliveries;;
+        2) echo "Checking recent reservations..."; reservations;;
+        *) echo "Invalid option. Ending the script..."; exit;;
+    esac
+fi
 echo "Ending the script"
