@@ -81,6 +81,8 @@ def format_output(text, color=None, bold=False):
         "gray": gray,
         "silver": gray,
         "beige": gray,
+        "ink": gray,
+        "black": gray,
     }
 
     for c in colors.keys():
@@ -109,6 +111,20 @@ def fetch(url, headers=None, warnings=False, verify=False):
         return s.get(url)
 
 
+def ignore_warnings(f):
+    from functools import wraps
+    from warnings import catch_warnings, simplefilter
+
+    @wraps(f)
+    def inner(*args, **kwargs):
+        with catch_warnings(record=True):
+            simplefilter("ignore")
+            response = f(*args, **kwargs)
+        return response
+    return inner
+
+
+@ignore_warnings
 def parse_datetime(raw, template=None, humanize=False):
     from arrow import get
 

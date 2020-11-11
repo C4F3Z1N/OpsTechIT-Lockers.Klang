@@ -18,6 +18,9 @@ from common import (
 
 
 def main():
+    from argparse import ArgumentParser
+
+    args = ArgumentParser(description="Check latest interaction logs.")
 
     logsize = int(getenv("LOG_SIZE", 50))
 

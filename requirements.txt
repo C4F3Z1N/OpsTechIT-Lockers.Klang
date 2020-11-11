@@ -1,4 +1,4 @@
-arrow==0.15.6
+arrow==0.17.0
 # flake8==3.8.2
 # pytest==4.6.11
 requests==2.24.0

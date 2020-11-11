@@ -96,42 +96,59 @@ fix_dependencies() {
 
 
 deploy() {
-	mkdir -p ${HOME}/bin
+	local INSTALL_DIR="${HOME}/bin"
+	mkdir -p ${INSTALL_DIR}
+
+	for EACH in $(find "${PWD}/install" -type file); do
+		ln -fsv ${EACH} ${INSTALL_DIR}
+	done
 
 	for EACH in $(find "${PWD}/src" -name "*.py"); do
 		sed "s%#\!.*python.*%#\!${PWD}/bin/python%" -i ${EACH}
-		chmod a+x ${EACH}
-		ln -fs ${EACH} "${HOME}/bin/$(basename ${EACH%.*})"
+
+		if [ $(echo ${EACH}  | grep -v "_\|common") ]; then
+			ln -fs ${EACH} "${INSTALL_DIR}/$(basename ${EACH%.*})"
+		fi
 	done
+
+	for EACH in "open" "sensor"; do
+		cat > "${INSTALL_DIR}/slot-${EACH}" <<-EOF
+			#!${SHELL}
+			exec ${PWD}/src/slot_inspect.py ${EACH} \${@}
+		EOF
+	done
+
+	for EACH in "scanner" "screen"; do
+		cat > "${INSTALL_DIR}/${EACH}" <<-EOF
+			#!${SHELL}
+			exec ${PWD}/src/user_io.py ${EACH}
+		EOF
+	done
+
+	chmod a+x ${INSTALL_DIR}/*
 }
 
 
 main() {
 	no_sudo
 
-	local RESULT=0
-
-	colored_output "[INFO] Downloading BETA-klang!..."
 	{
+		colored_output "[INFO] Downloading BETA-klang!..."
 		cd "$(mkenvdir)"
 		PACKED="$(mktemp -u)"
 		download ${URL_PACKED} ${PACKED}
 		extract ${PACKED} ${PWD}
 		source bin/activate
-	} && $((RESULT+=1)) || $((RESULT-=1))
-
-	colored_output "[INFO] Checking dependencies..."
-	{
+	} && {
+		colored_output "[INFO] Checking dependencies..."
 		fix_dependencies
 		deploy
-	} && $((RESULT+=1)) || $((RESULT-=1))
-
-	if [ ${RESULT} == 2 ]; then
+	} && {
 		colored_output "[PASS] Installation completed!"
-	else
+	} || {
 		colored_output "[ERROR] Installation failed!" 1>&2
 		exit 33
-	fi
+	}
 }
 
 main

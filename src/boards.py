@@ -39,7 +39,7 @@ def main():
     print(format_output("[INFO] Expected layout:", "yellow"))
     print(table((
         (
-            format_output(key.capitalize(), bold=True),
+            format_output(key, bold=True),
             format_output(value, kiosk_color, bold=True)
         )
         for key, value in info.items()

@@ -8,6 +8,7 @@ from common import (
     parse_datetime,
     table,
 )
+from collections import OrderedDict as dict
 
 
 def main():
@@ -22,7 +23,7 @@ def main():
 
     args.add_argument(
         "slots",
-        help="1 2 3... all",
+        help="Either \"1 2 3... n\" or \"all\"",
         metavar="slots",
         nargs="*")
 
@@ -31,17 +32,21 @@ def main():
     controller(args.operation, args.slots)
 
 
-def controller(operation, slots):
-
-    kiosk = {
-        locker["lockerConfig"]["lockerId"]: locker
+def parsed_lockers():
+    return {
+        int(locker["lockerConfig"]["lockerId"]): locker
         for locker in lockers()
     }
 
-    print(kiosk)
+
+def controller(operation, slots):
+
+    kiosk = parsed_lockers()
+
+    # operation definition;
 
     if not operation or "sens" in str(operation).lower():
-        operation = "-s"
+        operation = "-w -s"
 
     elif "open" in str(operation).lower():
         operation = "-o"
@@ -49,81 +54,78 @@ def controller(operation, slots):
     else:
         raise NotImplementedError
 
+    # affected slots verification;
+
     if len(slots) == 1 and str(slots[0]).lower() == "all":
         slots = kiosk.keys()
 
     else:
         slots = map(int, slots)
 
+    # slot existence verification;
+
     if all(slot in kiosk.keys() for slot in slots):
         pass
 
     elif any(slot in kiosk.keys() for slot in slots):
         not_found = set(slots) - set(kiosk.keys())
-        slots = list(set(slots) - not_found)
+        slots = set(slots) - not_found
 
-        warn = format_output("[WARN] Slots #%s weren't found.", "yellow")
+        warn = format_output("[WARN] Slot(s) #%s not found.", "magenta")
         print(warn % ", #".join(map(str, not_found)))
 
     else:
         raise NotImplementedError
 
+    # output/operation;
+
+    data = list()
+    for line in slot_status(slots):
+        line_color = "green" if line.pop("active") else "red"
+        line["status"] = format_output(line["status"], line_color, bold=True)
+        for i in ("updated", "checked"):
+            line[i] = parse_datetime(line[i], humanize=True)
+
+        data.append(dict((
+            (format_output(key.capitalize(), bold=True), value)
+            for key, value in line.items()
+        )))
+
     print(format_output("[INFO] From the local database:", "yellow"))
-    slot_print(slots)
+    print(table(data, headers="keys") if data else "- Nothing found.")
 
     print
 
     print(format_output("[INFO] From DPCS service:", "yellow"))
-
     return cmd_exec(
         "sudo %s %s -d %s" % (
             "/usr/local/dpcs/lockerController.sh",
             operation,
-            " ".join(map(str, slots))))
+            ' '.join(map(str, slots))
+        ),
+        interactive=True
+    )
 
 
-def slot_print(slots, full=True):
+def slot_status(slots):
 
-    header = ["#", "Status", "Updated"]
+    result = list()
 
-    if full:
-        header += ["Open", "Occupied", "Scanned"]
+    for key, value in filter(
+        lambda (key, value): key in slots,
+        parsed_lockers().items()
+    ):
+        result.append(dict((
+            ("#", key),
+            ("active", value["businessState"] == "ACTIVE"),
+            ("status", value["stateReason"]),
+            ("updated", parse_datetime(value["lastBusinessStateChangeTime"])),
+            ("open", value["status"]["open"]),
+            ("occupied", value["status"]["full"]),
+            ("checked", parse_datetime(value["status"]["lastScanDate"])),
+        )))
 
-    kiosk = lockers()
-    data = list()
-
-    for i in slots:
-
-        if kiosk[i]["businessState"] == "ACTIVE":
-            color = "green"
-
-        else:
-            color = "red"
-
-        d = [
-            i,
-            format_output(kiosk[i]["stateReason"], color, True),
-            parse_datetime(
-                kiosk[i]["lastBusinessStateChangeTime"],
-                humanize=True
-            )
-        ]
-
-        if full:
-            d += [
-                kiosk[i]["status"]["open"],
-                not kiosk[i]["status"]["empty"],
-                parse_datetime(
-                    kiosk[i]["status"]["lastScanDate"],
-                    humanize=True
-                )
-            ]
-
-        data.append(d)
-
-    header = [format_output(h, bold=True) for h in header]
-
-    print(table(data, headers=header))
+    return result
 
 
 def json():
