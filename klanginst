@@ -114,14 +114,14 @@ deploy() {
 	for EACH in "open" "sensor"; do
 		cat > "${INSTALL_DIR}/slot-${EACH}" <<-EOF
 			#!${SHELL}
-			exec ${PWD}/src/slot_inspect.py ${EACH} \${@}
+			exec ${PWD}/bin/python ${PWD}/src/slot_inspect.py ${EACH} \${@}
 		EOF
 	done
 
 	for EACH in "scanner" "screen"; do
 		cat > "${INSTALL_DIR}/${EACH}" <<-EOF
 			#!${SHELL}
-			exec ${PWD}/src/user_io.py ${EACH}
+			exec ${PWD}/bin/python ${PWD}/src/user_io.py ${EACH}
 		EOF
 	done
 
