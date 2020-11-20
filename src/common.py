@@ -148,10 +148,9 @@ def date_range(num, start=date.today()):
 
 
 def mac_address(ip):
-
-    for n in str(cmd_exec("ip neigh", False)).split("\n"):
-        if ip in n:
-            return str(n.split()[-2]).upper()
+    for n in str(cmd_exec("arp -a %s" % ip, interactive=False)).split():
+        if len(n.split(':')) == 6:
+            return n.upper()
 
 
 def table(*args, **kwargs):
@@ -163,7 +162,7 @@ def table(*args, **kwargs):
     return tabulate(*args, **kwargs)
 
 
-def _read_logs(log_path, days_ago=None):
+def read_logs(log_path, days_ago=None):
 
     if isinstance(log_path, str):
         raise TypeError("'str' is not accepted.")
@@ -180,17 +179,16 @@ def _read_logs(log_path, days_ago=None):
     else:
         log_path = expanded
 
-    # result = set()
-    for i in log_path:
-        with open_logfile(i) as lf:
-            yield lf.readlines()
-    #         result.update(lf.readlines())
+    result = set()
+    for path in log_path:
+        with open_logfile(path) as file:
+            result.update(file.readlines())
 
-    # return sorted(result) if result else None
+    return sorted(result)
 
 
-def read_logs(log_path, days_ago=None):
-    return chain.from_iterable(_read_logs(log_path, days_ago))
+# def read_logs(log_path, days_ago=None):
+#     return chain.from_iterable(_read_logs(log_path, days_ago))
 
 
 @contextmanager

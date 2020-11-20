@@ -2,22 +2,21 @@
 # -*- coding: utf-8 -*-
 
 
-from collections import OrderedDict as dict
 from common import (
     cmd_exec,
     format_output,
-    # getenv,
+    getenv,
     getKioskInfo as _getKioskInfo,
     getKioskLayout as _getKioskLayout,
     logger,
     mac_address,
     table,
 )
+from collections import OrderedDict as dict
 
 
 def main():
-    # log_size = int(getenv("LOG_SIZE", 30))
-    # print(log_size)
+    log_size = int(getenv("LOG_SIZE", 30))
 
     kiosk_config = _getKioskInfo()["kioskConfig"]
 
@@ -59,7 +58,7 @@ def main():
     ))
 
     data = boards.keys()
-    for key, value in multi_ping(data).items():
+    for key, value in multi_ping(data, size=log_size).items():
         result = {
             "type": format_output(boards[key], kiosk_color, bold=True),
             "ip": key,
@@ -77,12 +76,12 @@ def main():
             result["mac"] = format_output("?????", color, bold=True)
             result["sent/recv"] = format_output("0/0", color, bold=True)
 
-        data[data.index(key)] = {
-            format_output(r.upper(), bold=True): result[r]
-            for r in result
-        }
+        data[data.index(key)] = result
 
-    print(table(data, headers="keys"))
+    print(table(data, headers={
+        k: format_output(k.upper(), bold=True)
+        for k in data[-1].keys()
+    }))
 
 
 def ping(host, size=10, interval=.2, interactive=False):

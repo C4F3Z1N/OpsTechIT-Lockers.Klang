@@ -29,23 +29,63 @@ def main():
 
     args = args.parse_args()
 
+    # affected slots verification;
+
+    kiosk = parsed_lockers()
+
+    if len(args.slots) == 1 and str(args.slots[-1]).lower() == "all":
+        args.slots = kiosk.keys()
+
+    else:
+        args.slots = map(int, args.slots)
+
+    # slot existence verification;
+
+    if all(slot in kiosk.keys() for slot in args.slots):
+        pass
+
+    else:
+        not_found = set(args.slots) - set(kiosk.keys())
+        args.slots = set(args.slots) - not_found
+
+        warn = format_output("[WARN] Slot(s) #%s not found.", "magenta")
+        print(warn % ", #".join(map(str, sorted(not_found))))
+
+    # output/operation;
+
+    print(format_output("[INFO] From the local database:", "yellow"))
+
+    data = slot_status(args.slots)
+    for line in data:
+        color = "green" if line.pop("active") else "red"
+        line["status"] = format_output(line["status"], color, bold=True)
+        for key in ("updated", "checked"):
+            line[key] = parse_datetime(line[key], humanize=True)
+
+    print(table(data, headers={
+        k: format_output(k.capitalize(), bold=True)
+        for k in data[-1].keys()
+    }) if data else "- Nothing found.")
+
+    print
+
+    print(format_output("[INFO] From DPCS service:", "yellow"))
+
     controller(args.operation, args.slots)
 
 
 def parsed_lockers():
     return {
-        int(locker["lockerConfig"]["lockerId"]): locker
+        locker.pop("lockerId"): locker
         for locker in lockers()
     }
 
 
-def controller(operation, slots):
-
-    kiosk = parsed_lockers()
+def controller(operation, slots, interactive=True):
 
     # operation definition;
 
-    if not operation or "sens" in str(operation).lower():
+    if "sens" in str(operation).lower():
         operation = "-w -s"
 
     elif "open" in str(operation).lower():
@@ -54,68 +94,19 @@ def controller(operation, slots):
     else:
         raise NotImplementedError
 
-    # affected slots verification;
-
-    if len(slots) == 1 and str(slots[0]).lower() == "all":
-        slots = kiosk.keys()
-
-    else:
-        slots = map(int, slots)
-
-    # slot existence verification;
-
-    if all(slot in kiosk.keys() for slot in slots):
-        pass
-
-    elif any(slot in kiosk.keys() for slot in slots):
-        not_found = set(slots) - set(kiosk.keys())
-        slots = set(slots) - not_found
-
-        warn = format_output("[WARN] Slot(s) #%s not found.", "magenta")
-        print(warn % ", #".join(map(str, not_found)))
-
-    else:
-        raise NotImplementedError
-
-    # output/operation;
-
-    data = list()
-    for line in slot_status(slots):
-        line_color = "green" if line.pop("active") else "red"
-        line["status"] = format_output(line["status"], line_color, bold=True)
-        for i in ("updated", "checked"):
-            line[i] = parse_datetime(line[i], humanize=True)
-
-        data.append(dict((
-            (format_output(key.capitalize(), bold=True), value)
-            for key, value in line.items()
-        )))
-
-    print(format_output("[INFO] From the local database:", "yellow"))
-    print(table(data, headers="keys") if data else "- Nothing found.")
-
-    print
-
-    print(format_output("[INFO] From DPCS service:", "yellow"))
     return cmd_exec(
         "sudo %s %s -d %s" % (
             "/usr/local/dpcs/lockerController.sh",
             operation,
             ' '.join(map(str, slots))
         ),
-        interactive=True
-    )
+        interactive=interactive
+    ) if slots else None
 
 
 def slot_status(slots):
-
-    result = list()
-
-    for key, value in filter(
-        lambda (key, value): key in slots,
-        parsed_lockers().items()
-    ):
-        result.append(dict((
+    return [
+        dict((
             ("#", key),
             ("active", value["businessState"] == "ACTIVE"),
             ("status", value["stateReason"]),
@@ -123,9 +114,9 @@ def slot_status(slots):
             ("open", value["status"]["open"]),
             ("occupied", value["status"]["full"]),
             ("checked", parse_datetime(value["status"]["lastScanDate"])),
-        )))
-
-    return result
+        ))
+        for key, value in parsed_lockers().items() if key in slots
+    ]
 
 
 def json():

@@ -12,115 +12,122 @@ from common import (
     read_logs,
     table
 )
-from time import sleep
+from collections import OrderedDict as dict
 
 
 f_datetime = "YYYY-MM-DD HH:mm:ss Z"
 
 
 def main():
+    from time import sleep
 
     logsize = int(getenv("LOG_SIZE", 30))
 
     print(format_output("[INFO] apcupsd service:", "yellow"))
     assert cmd_exec("sudo service apcupsd restart")
 
-    print("\n")
+    print
 
     print(format_output("[INFO] apcupsd events:", "yellow"))
-
-    headers = (
-        format_output(text, bold=True)
-        for text in ("Timestamp", "Message")
-    )
     data = events()[-logsize:]
+    print(table(data, headers={
+        key: format_output(key.capitalize(), bold=True)
+        for key in data[-1].keys()
+    }) if data else "- Nothing found.")
 
-    print(table(data, headers=headers) if data else "- Nothing found.")
+    print
 
-    print("\n")
+    print(format_output("[INFO] UPSBatteryPercentMetric:", "yellow"))
 
-    headers = (
-        format_output(text, bold=True)
-        for text in ("Timestamp", "BCHARGE", "When")
-    )
-    data = list()
     log_path = (path.join(p, "kioskwatcher.log*") for p in (
         "/tmp/kiosklogpusher/backup",
         "/usr/local/kioskmonitoringtools"
     ))
 
-    print(format_output("[INFO] UPSBatteryPercentMetric:", "yellow"))
+    data = list()
+    previous = dict()
 
-    for d, s, m in logs(log_path, logsize / 15 or 1)[-logsize:]:
-        if s >= 50:
+    for line in logs(log_path, logsize / 15 or 1)[-logsize:]:
+        if line["percent"] >= 50:
             color = "green"
-        elif s >= 20:
+        elif line["percent"] >= 20:
             color = "yellow"
         else:
             color = "red"
 
-        line = [d, "%s %d%%" % (m, s), parse_datetime(d, humanize=True)]
-        data.append([format_output(i, color) for i in line])
+        if line["percent"] < previous.get("percent"):
+            level = u"\u2193"   # downwards arrow;
+        else:
+            level = u"\u2191"    # upwards arrow;
 
-    print(table(data, headers=headers) if data else "- Nothing found.")
+        data.append(dict((
+            ("timestamp", line["timestamp"]),
+            ("level", format_output("%s %d%%", color, bold=True) % (
+                level, line["percent"]
+            )),
+            ("when", parse_datetime(line["timestamp"], humanize=True)),
+        )))
+        previous = line
+
+    print(table(data, headers={
+        key: format_output(key.capitalize(), bold=True)
+        for key in data[-1].keys()
+    }) if data else "- Nothing found.")
 
     print
 
     print(format_output("[INFO] apcaccess:", "yellow"))
 
-    source = apcaccess()
     count = 3
+    source = apcaccess()
     while not source and count:
-        sleep(count)
+        sleep(3)
         source = apcaccess()
         count -= 1
 
     if not source:
         return source
 
-    important = ("STATUS", "BCHARGE")
-    data = list()
-
     if "ALARMMSG" in source:
         alarm = source.pop("ALARMMSG")
     else:
         alarm = None
 
-    for k, v in source.items():
-        k = format_output(k, "yellow" if k in important else None, True)
-        data.append((k, v))
+    data = list()
+    important = ("STATUS", "BCHARGE")
 
-    print(table(data, headers=headers) if data else "- Nothing found.")
+    for key, value in source.items():
+        key = format_output(
+            key,
+            "magenta" if key in important else None,
+            bold=True
+        )
+        data.append((key, value))
+
+    print(table(data) if data else "- Nothing found.")
 
     if alarm:
-        print("\n")
-        print(format_output("[WARN] UPS alarm:", "red", True))
+        print
+        print(format_output("[WARN] UPS alarm:", "red", bold=True))
         print(format_output(alarm, bold=True))
 
 
 def logs(log_path, days_ago):
     from json import loads
 
-    result = list()
-
+    data = list()
     for line in read_logs(log_path, days_ago):
         if "UPSBatteryPercentMetric" in line:
             line = loads(line.split("metric:")[-1])
-            result.append([
-                parse_datetime(int(line["timestamp"])),
-                int(line["percent"]),
-                '~'
-            ])
+            data.append({
+                "timestamp": parse_datetime(int(line["timestamp"])),
+                "percent": int(line["percent"]),
+            })
 
-    if result:
-        result = sorted(result)
-        filtered = [result[0]]
-        for r in result:
-            if r[1] != filtered[-1][1]:
-                r[2] = u"\u2191" if r[1] > filtered[-1][1] else u"\u2193"
-                filtered.append(r)
-
-        result = filtered
+    result = data[:1]
+    for line in data:
+        if line["percent"] != result[-1]["percent"]:
+            result.append(line)
 
     return result
 
@@ -144,8 +151,8 @@ def apcaccess():
         })
 
         alarm_msg = {
-            a: " ".join(m.split())
-            for a, m in {
+            alarm: ' '.join(message.split())
+            for alarm, message in {
                 "OVERLOAD":
                     "- Electrical system issue detected. Ask vendor \
                     to measure mains with the Martindale tester.",
@@ -178,7 +185,7 @@ def apcaccess():
         timeleft = float(result.get("TIMELEFT").split()[0])
 
         if timeleft <= 10:
-            message += " ".join("\
+            message += ' '.join("\
                 - UPS batteries are incapable of sustaining the Locker ON \
                 during a power outage. KODR will interpret the outage as \
                 Network. It's advisable to replace the UPS. If there are \
@@ -186,7 +193,7 @@ def apcaccess():
                 power failures.".split())
 
         elif timeleft >= 300:
-            message += " ".join("\
+            message += ' '.join("\
                 - Please ask the field engineer to connect the power strip \
                 to the UPS port labeled \"MASTER\". It is currently \
                 connected to the \"Controlled by MASTER\" port.".split())
@@ -203,9 +210,7 @@ def apcaccess():
 
 
 def events():
-
     result = list()
-
     keywords = (
         "battery",
         "failure",
@@ -214,19 +219,21 @@ def events():
         "shutdown",
         "startup"
     )
-
     for line in read_logs(["/var/log/apcupsd.events*"]):
-        if any(k in line.lower() for k in keywords):
+        if any(key in line.lower() for key in keywords):
             splitted = line.strip("\x00").split()
             try:
-                result.append((
-                    parse_datetime(" ".join(splitted[:3]), f_datetime),
-                    " ".join(splitted[3:])
-                ))
+                result.append(dict((
+                    ("timestamp", parse_datetime(
+                        ' '.join(splitted[:3]),
+                        f_datetime
+                    )),
+                    ("message", ' '.join(splitted[3:])),
+                )))
             except Exception as exception:
                 logger.debug(exception)
 
-    return sorted(result) if result else result
+    return sorted(result, key=lambda line: line["timestamp"])
 
 
 if __name__ == "__main__":
