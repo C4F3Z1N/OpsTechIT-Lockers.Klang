@@ -100,7 +100,9 @@ deploy() {
 	mkdir -p ${INSTALL_DIR}
 
 	for EACH in $(find "${PWD}/install" -type f); do
-		ln -fs ${EACH} "${INSTALL_DIR}/$(basename ${EACH})"
+		if [ ! -f "${INSTALL_DIR}/$(basename ${EACH})" ]; then
+			ln -fs ${EACH} "${INSTALL_DIR}/$(basename ${EACH})"
+		fi
 	done
 
 	for EACH in $(find "${PWD}/src" -name "*.py"); do

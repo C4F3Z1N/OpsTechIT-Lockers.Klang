@@ -43,26 +43,18 @@ def main():
             "yellow"
         ))
 
-        data = list()
         for key, value in detect(filtering).items():
             color = "green" if value else "red"
-            data.append([
-                key,
-                format_output(bool(value), color)
-            ])
-
-        print(table(data, headers=(
-            format_output(key.capitalize(), bold=True)
-            for key in ("command", "reachable")
-        )) if data else "- Nothing found.")
-
-        print
+            print(format_output(key, color, bold=True))
+            print("\n".join(value) if isinstance(value, list) else value)
+            print
 
     if logsize > 15:
 
         log_path = (path.join(p, "azbox_ui.log*") for p in (
             "/tmp/kiosklogpusher/backup",
             "/kiosk/local/*/logs",
+            "/usr/local/tomcat/logs",
         ))
 
         print(format_output("[INFO] Latest interaction logs:", "yellow"))
@@ -91,6 +83,7 @@ def main():
 
 def logs(log_path, days_ago, method=None):
 
+    current_reservations = reservations()
     data = list()
     for line in sorted(read_logs(log_path, days_ago)):
         if "Validat" in line and "directedID" not in line:
@@ -118,7 +111,10 @@ def logs(log_path, days_ago, method=None):
             else:
                 logger.debug([current["timestamp"], message])
 
-            current["reservation"] = find_reservation(current["code"]) or EMPTY
+            current["reservation"] = find(
+                current["code"],
+                current_reservations
+            ) or EMPTY
 
             # result:
             if data[-1:] and (len(data[-1]) == len(current)):
@@ -151,15 +147,15 @@ def logs(log_path, days_ago, method=None):
     }
 
     return filter(
-        lambda l: l["method"] in filtering[method],
+        lambda line: line["method"] in filtering[method],
         data
     ) if method else data
 
 
-def find_reservation(code):
+def find(code, source=None):
     filtered = str().join(filter(str.isdigit, code))
 
-    for r in reservations():
+    for r in source or reservations():
         if any(i in code for i in ('_', "CR")):
             if "externalReferenceIds" in r:
                 for attr in r["externalReferenceIds"]:
@@ -177,15 +173,25 @@ def find_reservation(code):
 
 
 def detect(method):
+
+    def cmd_parse(command):
+        result = cmd_exec(command, interactive=False)
+        if result:
+            result = map(
+                lambda line: line.decode('utf-8'),
+                str(result).split("\n")
+            )
+        return result
+
     data = {
-        "dmesg": str(cmd_exec("dmesg -T", interactive=False)).split("\n"),
-        "lsusb": str(cmd_exec("lsusb", interactive=False)).split("\n"),
+        "dmesg": cmd_parse("dmesg -T"),
+        "lsusb": cmd_parse("lsusb"),
     }
     result = dict()
 
     if method == "scanner":
         result["dmesg"] = filter(
-            lambda l: "honey" in l.lower(),
+            lambda line: "honey" in line.lower(),
             data["dmesg"]
         )
 
@@ -196,7 +202,7 @@ def detect(method):
         keywords = ("egal", "elo")
         for key in data.keys():
             result[key] = filter(
-                lambda l: any(k in l.lower() for k in keywords),
+                lambda line: any(k in line.lower() for k in keywords),
                 data[key]
             )
 
