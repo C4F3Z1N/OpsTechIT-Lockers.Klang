@@ -50,7 +50,6 @@ def main():
             print
 
     if logsize > 15:
-
         log_path = (path.join(p, "azbox_ui.log*") for p in (
             "/tmp/kiosklogpusher/backup",
             "/kiosk/local/*/logs",
